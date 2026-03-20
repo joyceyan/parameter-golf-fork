@@ -8,7 +8,7 @@ This is an experiment to have the LLM do its own research, adapted for the OpenA
 cat program.md | claude --dangerously-skip-permissions
 ```
 
-This runs Claude Code in non-interactive mode with all permissions auto-approved, allowing fully autonomous operation. Claude will create a branch, establish a baseline, and loop experiments indefinitely until you kill the process (`Ctrl+C`).
+This runs Claude Code in non-interactive mode with all permissions auto-approved, allowing fully autonomous operation. Claude will establish a baseline and loop experiments on `main` indefinitely until you kill the process (`Ctrl+C`).
 
 ## Setup
 
@@ -23,17 +23,15 @@ Do all of these steps immediately without asking for confirmation. You are fully
   ```
    If `.venv` already exists, just activate it: `source .venv/bin/activate`.
    **All subsequent commands must run inside this venv.** Always prefix python/pip commands with `source .venv/bin/activate &&` or ensure the venv is active in your shell.
-2. **Pick a run tag**: use today's date (e.g. `mar19`). If `autoresearch/<tag>` already exists, append a suffix (e.g. `mar19b`).
-3. **Create the branch**: `git checkout -b autoresearch/<tag>` from current HEAD.
-4. **Read the in-scope files**: Read these files for full context:
+2. **Read the in-scope files**: Read these files for full context:
   - `README.md` — repository context, challenge rules, leaderboard.
   - `train_gpt_mlx.py` — the file you modify. Model architecture, optimizer, hyperparameters, training loop. Everything is fair game.
-5. **Verify data exists**: Check that `./data/datasets/fineweb10B_sp1024/` contains training shards and validation data. If not, download it:
+3. **Verify data exists**: Check that `./data/datasets/fineweb10B_sp1024/` contains training shards and validation data. If not, download it:
   ```bash
    source .venv/bin/activate && python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
   ```
-6. **Initialize results.tsv**: Create `results.tsv` with just the header row.
-7. **Immediately start the baseline run** — do not wait for confirmation.
+4. **Initialize results.tsv**: Create `results.tsv` with just the header row (if it doesn't already exist).
+5. **Immediately start the baseline run** — do not wait for confirmation.
 
 ## Experimentation
 
@@ -144,7 +142,7 @@ e5f6g7h	1.195000	6.80	2048	keep	try 2048-vocab tokenizer
 
 ## The experiment loop
 
-The experiment runs on a dedicated branch (e.g. `autoresearch/mar19`).
+The experiment runs on `main`. All kept experiments are committed and pushed directly to `main`.
 
 LOOP FOREVER:
 

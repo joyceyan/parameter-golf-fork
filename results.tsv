@@ -1,2 +1,1 @@
-started_pt	commit	roundtrip_val_bpb	artifact_mb	vocab	status	description
-2026-03-19 00:00	9214ac4	3.24274821	5.34	1024	discard	baseline 30min M2 Pro (67 steps only - broken throughput)
+started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	description

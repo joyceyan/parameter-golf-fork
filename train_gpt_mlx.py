@@ -53,8 +53,8 @@ class Hyperparameters:
     # Validation always uses the full fineweb_val split.
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
-    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 65_536))
-    grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 1))
+    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 1024)))
     # Chunk each logical MLX microbatch into smaller sub-batches to reduce peak
     # memory pressure without changing the effective optimizer batch.
@@ -63,8 +63,8 @@ class Hyperparameters:
     # graph buildup across accumulation steps. Keeps peak memory low on 16GB machines.
     # Disable on 32GB+ unified memory for better throughput (MLX_EAGER_EVAL=0).
     mlx_eager_eval: bool = bool(int(os.environ.get("MLX_EAGER_EVAL", "1")))
-    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 3))
-    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 150))
+    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
+    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
     # Model (defaults match the current baseline setup).
@@ -91,7 +91,7 @@ class Hyperparameters:
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 100))
+    muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
@@ -804,14 +804,10 @@ def eval_val(
         ).astype(np.int16, copy=False)
         total_tokens += chunk_token_count
         total_bytes += float(bytes_np.astype(np.float64).sum())
-        if log_fn is not None and total_batches > 1:
-            pct = batch_idx / total_batches
-            bar_width = 30
-            filled = int(bar_width * pct)
-            bar = "█" * filled + "░" * (bar_width - filled)
-            print(f"\r  val [{bar}] {batch_idx}/{total_batches}", end="", flush=True)
-    if log_fn is not None and total_batches > 1:
-        print()  # newline after progress bar
+        if log_fn is not None and total_batches > 1 and (
+            batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
+        ):
+            log_fn(f"val_progress:{batch_idx}/{total_batches}")
     val_loss = total_loss_sum / total_tokens
     bits_per_token = val_loss / math.log(2.0)
     val_bpb = bits_per_token * (total_tokens / total_bytes)
@@ -978,13 +974,8 @@ def main() -> None:
                 accum = accumulate_flat_grads(accum, grads, grad_scale)
             mx.eval(warmup_loss, accum)
             mx.synchronize()
-            pct = (warmup_step + 1) / args.warmup_steps
-            bar_width = 30
-            filled = int(bar_width * pct)
-            bar = "█" * filled + "░" * (bar_width - filled)
-            print(f"\r  warmup [{bar}] {warmup_step + 1}/{args.warmup_steps}", end="", flush=True)
-        print()
-        log(f"warmup_steps:{args.warmup_steps} complete")
+            if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
+                log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
 
         # Prime the standalone eval graph once too. It is compiled separately from value_and_grad.
         val_batch_tokens = args.val_batch_size // args.grad_accum_steps
@@ -1007,15 +998,11 @@ def main() -> None:
     train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     stop_after_step: int | None = None
-    _progress_active = False
     t0 = time.perf_counter()
     step = 0
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
-            if _progress_active:
-                print()
-                _progress_active = False
             train_time_ms += 1000.0 * (time.perf_counter() - t0)
             # Validation always scans the same fixed full validation split.
             val_loss, val_bpb = eval_val(
@@ -1062,27 +1049,10 @@ def main() -> None:
         tok_s = args.train_batch_tokens / (step_ms / 1000.0)
         step += 1
         if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None):
-            if _progress_active:
-                print()
-                _progress_active = False
             log(
                 f"step:{step}/{args.iterations} train_loss:{train_loss_value:.4f} "
                 f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f}"
             )
-        # Training progress bar (console only)
-        pct = step / args.iterations
-        bar_width = 30
-        filled = int(bar_width * pct)
-        bar = "█" * filled + "░" * (bar_width - filled)
-        elapsed_s = approx_train_time_ms / 1000.0
-        eta_s = elapsed_s * (args.iterations - step) / max(step, 1)
-        eta_m, eta_s_rem = divmod(int(eta_s), 60)
-        print(
-            f"\r  train [{bar}] {step}/{args.iterations} "
-            f"loss:{train_loss_value:.4f} tok/s:{tok_s:.0f} eta:{eta_m}m{eta_s_rem:02d}s",
-            end="", flush=True,
-        )
-        _progress_active = True
         if max_wallclock_ms is not None and stop_after_step is None and approx_train_time_ms >= max_wallclock_ms:
             stop_after_step = step
 

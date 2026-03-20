@@ -114,6 +114,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also download docs_selected.jsonl and its sidecar for tokenizer retraining or dataset re-export.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Override the output directory for dataset files. If not set, defaults to data/datasets/<variant>/.",
+    )
     return parser
 
 
@@ -144,10 +150,32 @@ def main() -> None:
         get(f"{REMOTE_ROOT_PREFIX}/docs_selected.source_manifest.json")
 
     dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{dataset_dir}"
+    # If --output-dir is set, download to HF cache then copy/link into custom dir
+    output_dir = Path(args.output_dir).resolve() if args.output_dir else None
+    if output_dir:
+        output_dir.mkdir(parents=True, exist_ok=True)
     for i in range(val_shards):
-        get(f"{dataset_prefix}/fineweb_val_{i:06d}.bin")
+        remote = f"{dataset_prefix}/fineweb_val_{i:06d}.bin"
+        get(remote)
+        if output_dir:
+            src = local_path_for_remote(remote)
+            dst = output_dir / src.name
+            if not dst.exists():
+                try:
+                    os.link(src, dst)
+                except OSError:
+                    shutil.copy2(src, dst)
     for i in range(train_shards):
-        get(f"{dataset_prefix}/fineweb_train_{i:06d}.bin")
+        remote = f"{dataset_prefix}/fineweb_train_{i:06d}.bin"
+        get(remote)
+        if output_dir:
+            src = local_path_for_remote(remote)
+            dst = output_dir / src.name
+            if not dst.exists():
+                try:
+                    os.link(src, dst)
+                except OSError:
+                    shutil.copy2(src, dst)
 
     for artifact_path in artifact_paths_for_tokenizer(tokenizer_entry):
         get(f"{REMOTE_ROOT_PREFIX}/{artifact_path}")

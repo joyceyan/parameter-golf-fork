@@ -168,10 +168,19 @@
 
 **Current best**: val_bpb=1.9869, LR 0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.02, 9L/512dim.
 
-**Strategy pivot**: Optimizer tuning near-exhausted. Options:
-1. Increase batch tokens (65K → 128K with grad accum)
-2. Adam WD on embed/scalar params
-3. Increase warmdown_iters (try 2000 — tighter weights)
-4. Different architecture ideas
+### Experiments 13-15: WD sweep + LR push
+- **WD=0.04** (exp 13): 1.9844, 10.33MB KEEP
+- **LR=0.40 with WD=0.04** (exp 14): 2.0013, 10.75MB DISCARD (LR too high)
+- **WD=0.08** (exp 15): 1.9793, 10.04MB KEEP
+
+WD trend: higher WD improves both pre-quant quality AND compression.
+| WD | pre-quant | roundtrip | artifact |
+|----|-----------|-----------|----------|
+| 0 | 1.9884 | 1.9905 | 10.60 |
+| 0.02 | 1.9847 | 1.9869 | 10.47 |
+| 0.04 | 1.9820 | 1.9844 | 10.33 |
+| 0.08 | 1.9767 | 1.9793 | 10.04 |
+
+**Current best**: val_bpb=1.9793, artifact=10.04MB. Config: LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.08.
 
 

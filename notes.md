@@ -105,4 +105,12 @@
 - **Key insight**: The baseline was severely under-learning with effective LR of only ~0.006 (0.04 * 0.14). Higher base LR dramatically improved learning. This is the most impactful change so far.
 - **Next ideas**: Try even higher LR (0.08/0.08/0.10)? Or combine with FP16 embeddings now that we have a better baseline. Also try extended warmdown to reduce the quant penalty.
 
+### Experiment 4: Even higher LR (2026-03-20 00:04)
+- **Hypothesis**: LR was the clear bottleneck in exp 3. Push further to 0.08/0.08/0.10.
+- **Result**: roundtrip_val_bpb=2.1816 (vs 2.2960), artifact=8.10MB, 176 steps, **KEEP — 0.114 BPB improvement!**
+- **Training dynamics**: Step 10 loss 6.51 (vs 6.58 with 0.06 LR). Pre-quant val_bpb=2.1704, quant penalty=0.0112. Loss still decreasing at step 176.
+- **Key insight**: LR is still undertuned — more gains from higher LR. Artifact size grew from 7.63→8.10MB (higher LR produces larger weight magnitudes → worse compression ratio). Quant penalty stable at 0.011.
+- **Cumulative**: baseline 2.4294 → exp3 2.2960 → exp4 2.1816. Total improvement: 0.248 BPB from LR alone.
+- **Next ideas**: Push LR even higher (0.12/0.12/0.15)? The artifact size trend (7.04→7.63→8.10) suggests weights are getting bigger — may eventually hit 16MB. Also: FP16 embed to reduce the 0.011 quant penalty.
+
 

@@ -89,4 +89,13 @@
 - **Note**: This is smoke-test-only (1 shard, 10-min cap). Absolute numbers are much worse than full-data H100 runs. Use as directional baseline for comparing experiments.
 - **Ideas**: FP16 embeddings (records show ~0.006 BPB win), extended warmdown (already at 1200, try much larger), 10 layers (needs size management).
 
+### Experiment 2: FP16 embeddings (2026-03-19 22:52)
+- **Hypothesis**: Keeping tok_emb.weight in fp16 instead of int8 during serialization reduces quantization error that compounds through both input embedding and output projection (tied weights). Records show ~0.006 BPB improvement.
+- **Config**: Same as baseline, only change is adding "tok_emb" to fp16 passthrough in quantize_state_dict_int8.
+- **Result**: roundtrip_val_bpb=2.453442, artifact=7.43MB, 173 steps in ~21min, DISCARDED
+- **Training dynamics**: Similar trajectory to baseline (6.94→6.89 in 10 steps), step_avg=3481ms. Pre-quant val_bpb=2.4441 vs baseline's 2.4182.
+- **Key insight**: The code change ONLY affects post-training serialization, not training itself. Pre-quant val_bpb difference (0.026) reveals significant run-to-run variance in MLX smoke tests. The quant penalty DID decrease (0.0093 vs baseline 0.0112), confirming FP16 embeddings help with quantization.
+- **Conclusion**: FP16 embeddings are still a valid technique (proven by records), but the benefit (~0.002 BPB quant reduction) is drowned by smoke test variance (~0.026). This will help on production H100 runs where pre-quant performance is stable across seeds.
+- **Next ideas**: Extended warmdown (much larger WARMDOWN_ITERS), which is a training-time change that should show clearer directional signal.
+
 

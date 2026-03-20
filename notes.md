@@ -81,5 +81,12 @@
 
 (Entries will be appended below as experiments complete)
 
+### Experiment 1: Baseline (2026-03-19 21:36)
+- **Config**: 9L, 512dim, 1024 vocab, 65K batch/1x accum, warmup=20, warmdown=1200, LR=0.04/0.04/0.05
+- **Result**: roundtrip_val_bpb=2.429389, artifact=7.04MB, 176 steps in 10min, KEEP
+- **Training dynamics**: Loss dropped rapidly (6.94→6.69 in first 10 steps), ~3.4s/step, ~19K tok/s. Still decreasing at stop (val_bpb=2.42 at step 176). Lots of room for improvement with more steps on full data.
+- **Quant penalty**: pre-quant val_bpb=2.4182 vs post-quant=2.4294, penalty=0.011. Significant — FP16 embeddings could help.
+- **Note**: This is smoke-test-only (1 shard, 10-min cap). Absolute numbers are much worse than full-data H100 runs. Use as directional baseline for comparing experiments.
+- **Ideas**: FP16 embeddings (records show ~0.006 BPB win), extended warmdown (already at 1200, try much larger), 10 layers (needs size management).
 
 

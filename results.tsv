@@ -1,1 +1,2 @@
 started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	description
+2026-03-19 21:36	b0a7082	2.429389	7.04	34.0	1024	keep	baseline (smoke, 65K batch, 176 steps)

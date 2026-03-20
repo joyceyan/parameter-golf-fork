@@ -18,3 +18,4 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 07:43	583c6ff	1.957802	8.51	21.0	1024	keep	Muon WD 0.32
 2026-03-20 08:18	c86fd10	1.962219	6.98	21.0	1024	discard	Muon WD 0.64 (quant penalty too high)
 2026-03-20 08:54	e76e916	1.961715	8.77	21.0	1024	discard	FP16 embed (too small vs variance)
+2026-03-20 09:29	3db9ba7	1.926774	8.46	21.0	1024	keep	add WD to embedding (Adam-optimized)

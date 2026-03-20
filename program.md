@@ -25,11 +25,15 @@ This setup is **idempotent** — it can be re-run safely. If `results.tsv`, `not
   ```bash
    git fetch upstream && git merge upstream/main --no-edit
   ```
-4. **Study accepted records**: List all record-setting submissions and read their READMEs and training scripts for ideas:
+4. **Study accepted records**: List all record-setting submissions and read their READMEs and diffs against the baseline:
   ```bash
    ls records/track_10min_16mb/
   ```
-   For each submission, read its `README.md` for the technique description and `train_gpt.py` for implementation details. Summarize key techniques and ideas in `notes.md` under a "## Record analysis" section. If `notes.md` already has a "Record analysis" section from a previous session, update it with any new records rather than duplicating.
+   For each submission, read its `README.md`, then **diff its `train_gpt.py` against the NaiveBaseline** to see exactly what changed:
+  ```bash
+   diff records/track_10min_16mb/2026-03-17_NaiveBaseline/train_gpt.py records/track_10min_16mb/<submission>/train_gpt.py
+  ```
+   This is much more efficient than reading entire files — diffs are typically tens of lines and show exactly the code changes that produced each record. Summarize key techniques in `notes.md` under a "## Record analysis" section, including enough implementation detail (exact hyperparameters, code changes, formulas) that you could replicate the approach from the notes alone. If `notes.md` already has a "Record analysis" section from a previous session, update it with any new records rather than duplicating.
 5. **Read the in-scope files**: Read these files for full context:
   - `README.md` — repository context, challenge rules, leaderboard.
   - `train_gpt_mlx.py` — the file you modify. Model architecture, optimizer, hyperparameters, training loop. Everything is fair game.
@@ -230,11 +234,15 @@ LOOP FOREVER:
   ```bash
    git fetch upstream && git merge upstream/main --no-edit
   ```
-   If new records appeared in `records/track_10min_16mb/`, read their `README.md` and `train_gpt.py` and add key techniques to the "Record analysis" section of `notes.md`.
-2. **Design the next experiment** based on insights from the notebook. Make **exactly one change** per experiment so you can isolate what helped or hurt. The change can be either:
-  - An edit to `train_gpt_mlx.py` (architecture, hyperparameters, optimizer, etc.), OR
+   If new records appeared in `records/track_10min_16mb/`, read their `README.md` and diff their `train_gpt.py` against the NaiveBaseline (see step 4 for the diff command). Add key techniques to the "Record analysis" section of `notes.md` with enough implementation detail to replicate.
+   Also check if the upstream `train_gpt.py` itself has changed — contestants sometimes commit improvements directly to the base training script (not just records). Run `git diff HEAD...upstream/main -- train_gpt.py` and review any new techniques worth porting to `train_gpt_mlx.py`.
+2. **Design the next experiment** based on insights from the notebook. Consult the "Record analysis" section of `notes.md` — it contains implementation-ready descriptions of every record-setting technique (exact hyperparameters, code changes, formulas). **Prioritize reproducing proven record techniques before inventing new approaches.** Each record entry has enough detail to port the technique to `train_gpt_mlx.py` without reading the original submission.
+   The change can be any single modification to `train_gpt_mlx.py`:
+  - Training-time changes: architecture, hyperparameters, optimizer, batch size, model size, etc.
+  - Eval-time changes: sliding window evaluation, strided eval, test-time training (TTT), eval loop modifications
+  - Reproducing a technique from a record submission (this counts as one change even if it involves multiple sub-components — e.g. "implement sliding window eval" is one experiment)
   - A tokenizer experiment (new vocab size — see **Tokenizer experiments** section)
-   Do not combine multiple changes in a single experiment. If you want to test a new LR *and* a new activation function, run them as two separate experiments.
+   When inventing new changes (not reproducing records), make exactly one modification per experiment to isolate variables.
 3. `git commit -am "description of experiment"`
 4. **Record start time**:
   ```bash

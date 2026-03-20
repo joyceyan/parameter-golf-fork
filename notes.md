@@ -2,72 +2,116 @@
 
 ## Record analysis
 
-### SOTA: SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit (1.1748)
+### NaiveBaseline (1.2244)
 
-- **10 layers** (vs 9 baseline), fits in 16MB thanks to Muon weight decay (WD=0.02) compressing weights
-- **FP16 tied embeddings**: Prevents int8 quantization error from compounding through input+output paths
-- **Sliding window evaluation** (stride=64): Each token scored with ~960+ context instead of 0-1023 average
-- **Overtone spectral embedding init**: SVD power-law spectrum shaping (S_k ~ k^{-0.5})
-- **Phase-transition residual mixing**: Sigmoid-scheduled resid_mix initialization
-- Architecture: 1024 vocab, 10L, 512dim, 8 heads, 4 KV heads, seq_len=1024
+- **Config**: 9L, 512dim, 1024 vocab, 8 heads, 4 KV heads, seq=1024, TIED_EMBED_LR=0.05, MATRIX_LR=0.04, SCALAR_LR=0.04, WARMDOWN_ITERS=1200, TRAIN_BATCH_TOKENS=524288
+- ~13780 steps in 10 min on H100, ~43.54ms/step
+- Pre-quant: 1.2172, post-quant: 1.2244 (penalty: 0.007)
+- Artifact: 15,863,489 bytes
+- **Code changes**: None — this is the reference baseline.
 
-### SlidingWindowEval (1.1925)
+### LowerLR (1.2230)
 
-- Pure evaluation improvement: sliding window with stride=64
-- No training changes — same baseline model
-- Shows eval strategy alone yields 0.032 BPB improvement
-- Eval time: 70s on 8xH100 (well within budget)
-
-### LoRA TTT (1.1928)
-
-- Test-time training with rank-8 LoRA on eval
-- Per-document adaptation: detect boundaries via BOS tokens, reset LoRA between docs
-- Strided evaluation (chunk=256 within eval_seq_len=1024)
-- Targets lm_head, c_q, c_v projections; Adam lr=0.01
-
-### LongContextSeq2048 → Seq4096 (1.2014)
-
-- Doubled/quadrupled sequence length provides more context per token
-- 2048: ~51.89ms/step; 4096: ~71ms/step (slower but better signal)
-- Lower LR (0.032 matrix, 0.032 scalar) with longer context
-- Trains fewer steps but each step has richer signal
+- **Config**: Same code as baseline, only env var overrides: MATRIX_LR=0.02, SCALAR_LR=0.02, TIED_EMBED_LR=0.03
+- 14421 steps, step_avg:41.60ms
+- **Code changes**: None — identical train_gpt.py to baseline. Pure HP sweep.
+- **LR sweep results**: 0.06→1.2445, 0.04→1.2286, 0.025→1.2250, **0.02→1.2230**, 0.015→1.2234
 
 ### FP16Embed_WD3600 (1.2197)
 
-- FP16 embedding passthrough reduces post-quant degradation from ~0.007 to ~0.0005 BPB
-- Extended warmdown (3600 iters) + higher LR (0.06)
-- MLP_HIDDEN reduced to 992 to offset FP16 embedding overhead
-- Key insight: embeddings are dual-purpose (input+output), so int8 errors compound
+- **Config**: WARMDOWN_ITERS=3600, MATRIX_LR=0.06, MLP_HIDDEN=992 (SCALAR_LR and TIED_EMBED_LR unchanged from baseline)
+- **Code changes**:
+  1. Add `mlp_hidden` env var and plumb through MLP/Block/GPT constructors: `hidden = mlp_hidden if mlp_hidden > 0 else mlp_mult * dim`
+  2. In `quantize_state_dict_int8`, change the passthrough condition: `if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or name == "tok_emb.weight":` — this keeps tied embedding in fp16 instead of int8
+- Post-quant penalty drops from ~0.007 to ~0.0005 BPB. Cost: ~500KB extra, offset by MLP_HIDDEN=992.
+- **Failed experiments**: SwiGLU, depth recurrence, QAT, lzma, higher embed LR
+
+### LongContextSeq2048 (1.2058)
+
+- **Config**: TRAIN_SEQ_LEN=2048, TIED_EMBED_LR=0.04, MATRIX_LR=0.032, SCALAR_LR=0.032
+- **Code changes**: Only default values changed in Hyperparameters class. No architectural changes.
+- 11564 steps, step_avg:51.89ms
+- 3 seeds: 1.20576, 1.20617, 1.20716 (mean 1.20637)
+
+### TrainingOptSeq4096 (1.2014)
+
+- **Config**: TRAIN_SEQ_LEN=4096, TRAIN_BATCH_TOKENS=393216, TIED_EMBED_LR=0.030, MATRIX_LR=0.020, SCALAR_LR=0.020, MUON_MOMENTUM=0.99, MUON_MOMENTUM_WARMUP_START=0.92, MUON_MOMENTUM_WARMUP_STEPS=1500, WARMDOWN_ITERS=3000
+- **Code changes**: Only default values changed. No architectural changes.
+- 8394 steps, step_avg:71.47ms. Quant penalty only 0.0034 BPB.
 
 ### 10L_MixedPrecision (1.2147)
 
-- 10 layers with mixed int8/int6 compression
-- Early (0-2) and late (7-9) layers: int8; middle (3-6): int6 (64 levels)
-- Middle layers less sensitive to quantization, saves ~1.6MB for 10L
-- Lower LR: 0.02 matrix/scalar, 0.03 embed
+- **Config**: NUM_LAYERS=10, MATRIX_LR=0.02, SCALAR_LR=0.02, TIED_EMBED_LR=0.03, INT4_LAYERS=3,4,5,6, INT4_STEP=4
+- **Code changes** (post-quantization, after `quantize_state_dict_int8`):
+  1. Add `int4_layers` (comma-separated layer indices) and `int4_step` env vars
+  2. For layers in `int4_set`, round int8 values to nearest `step`: `((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)` — this gives 64 effective quantization levels (int6) while still stored as int8, compressing much better with zlib
+  3. Optional `prune_ratio` to zero out small int8 values (not used in winning config)
+- 10L at dim=512 would be 17.6MB with pure int8. Int6 on middle layers drops to 15.9MB.
+- 13100 steps, step_avg:45.78ms
 
 ### WarmdownQuantization (1.2154)
 
-- WARMDOWN_ITERS=20000 (>> actual ~12200 steps): entire training in LR decay
-- Produces tighter weight distributions with fewer outliers → better int8 compression
-- Post-quant penalty: 0.014 (WD=1200) → 0.005 (WD=20000) → ~0.001 with FP16 embed
-- Higher LR (0.06/0.07) compensates for always-decaying schedule
-- GRAD_CLIP_NORM=1.0 used
+- **Config**: WARMDOWN_ITERS=20000, MATRIX_LR=0.06, SCALAR_LR=0.06, TIED_EMBED_LR=0.07, GRAD_CLIP_NORM=1.0, MUON_BACKEND_STEPS=5, EVAL_SEQ_LEN=1408, MLP_HIDDEN=992
+- **Code changes** (combines several techniques):
+  1. FP16 tied embedding passthrough (same as FP16Embed_WD3600)
+  2. MLP_HIDDEN plumbing (same as FP16Embed_WD3600)
+  3. **NTK-RoPE extrapolation**: Modified Rotary class to accept `train_seq_len` and dynamically scale RoPE base when `seq_len > train_seq_len`: `base_scaled = base * ((seq_len / train_seq_len) ** (dim / (dim - 2)))`. Eval at 1408 tokens (1.375x train) improves BPB.
+  4. **Int6 quantization for all non-passthrough weights**: `quantize_float_tensor(t, bits=6)` — generalized quantizer with `max_val = (2^(bits-1)) - 1`
+  5. **Late-K passthrough**: Last 2 layers' `c_k.weight` kept in fp16 instead of quantized
+  6. `eval_val` modified to accept `eval_seq_len` override parameter
+- Post-quant penalty: 0.014 (baseline) → 0.005 (warmdown alone) → ~0.001 (+ FP16 embed)
 
-### TrainingOptSeq4096 (best 4096-context submission)
+### SlidingWindowEval (1.1925)
 
-- 4096 seq len with momentum=0.99, warmup 1500 steps from 0.92
-- Lower LR: 0.020 matrix/scalar, 0.030 embed
-- WARMDOWN_ITERS=3000, batch=393216 (3/4 of default)
-- Quant penalty only 0.0034 BPB (low LR helps)
+- **Config**: EVAL_STRIDE=64, EVAL_BATCH_SEQS=1024. Training identical to baseline.
+- **Code changes** (eval-time only, ~100 LOC):
+  1. Add `forward_logits` method to GPT: same as `forward` but returns logits `(bsz, seq_len, vocab)` instead of computing loss
+  2. Add `eval_val_sliding` function:
+     - Generate overlapping windows: for each start position in `range(0, total_tokens, stride)`, take a window of `seq_len` tokens ending at `start + seq_len`
+     - For each window, only score the rightmost `stride` tokens (except the first window which scores all tokens) — this ensures each token is scored with near-maximum context
+     - Batch windows together (`eval_batch_seqs`) for efficient forward passes
+     - Accumulate byte-weighted BPB across all scored tokens
+     - Distribute windows across GPUs for multi-GPU eval
+  3. At end of training, if `eval_stride > 0`, call `eval_val_sliding` instead of `eval_val`
+- Pure eval improvement: 0.032 BPB. Eval time: 70s on 8xH100 (vs ~16s baseline).
 
-### NaiveBaseline (1.2244)
+### LoRA TTT (1.1928)
 
-- Reference: 9L, 512dim, 1024 vocab, 8 heads, 4 KV heads, seq=1024
-- ~13780 steps in 10 min on H100, ~43.54ms/step
-- Pre-quant: 1.2172, post-quant: 1.2244 (penalty: 0.007)
+- **Config**: Training identical to baseline. TTT params: TTT_LORA_RANK=8, TTT_LORA_LR=0.01, TTT_CHUNK_SIZE=256, TTT_EVAL_SEQ_LEN=1024, TTT_BATCH_SIZE=64
+- **How it works**: TTT is NOT built into the eval harness — contestants implement it in submission code. At eval time, per document: predict a chunk → score it → one Adam step on LoRA weights → predict next chunk with updated weights. Reset between documents (no cross-document leakage).
+- **Code changes** (~200 LOC):
+  1. `BatchedLinearLoRA` class: per-batch-element independent A/B matrices. A init: kaiming-uniform (`1/sqrt(in_features)`), B init: zeros. Forward: `x @ A^T @ B^T`.
+  2. `BatchedTTTLoRA` class: creates `lm_head_lora` + `q_loras` + `v_loras` (one per block)
+  3. Modify `CausalSelfAttention.forward` to accept `q_delta, v_delta` — added to q/v projections before reshape
+  4. Modify `Block.forward` to accept `q_delta_fn, v_delta_fn` — computes deltas from attn_norm output
+  5. Modify `GPT.forward` to accept `lora` param — passes q/v lora deltas per block, adds `lora.lm_head_lora(x)` to logits. When lora is passed, returns per-token loss `(bsz, seq_len)` instead of mean loss.
+  6. `eval_val_ttt_lora` function: find doc boundaries via BOS_ID=1, sort docs by length for batching efficiency, process in batches of 64. Per chunk: forward with grad if training needed, accumulate BPB scores, then one Adam step (betas=0.9/0.95) on non-final chunks. Reset LoRA + optimizer between docs.
+- **Ablation**: ~90% of gain from doc isolation + strided eval, ~10% from LoRA TTT itself.
 
-## Key takeaways for local MLX experiments
+### SOTA: SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit (1.1748)
+
+- **Config**: NUM_LAYERS=10, WARMDOWN_ITERS=2500, TIED_EMBED_LR=0.10, MATRIX_LR=0.04, SCALAR_LR=0.04, EVAL_STRIDE=64 (runtime env var). Adam weight_decay=0.01 for tok_emb and scalar params. Muon WD=0.02 (decoupled, applied manually).
+- **Code changes** (combines multiple techniques):
+  1. **FP16 tied embedding**: Same passthrough as FP16Embed_WD3600 (`if "tok_emb" in name: keep as fp16`)
+  2. **Sliding window eval**: Same `forward_logits` + `eval_val_sliding` as SlidingWindowEval, with compiled forward for efficiency. eval_batch_seqs=256.
+  3. **NTK-RoPE**: Same dynamic scaling in Rotary as WarmdownQuantization, parameterized by `train_seq_len`
+  4. **Decoupled Muon weight decay**: After each training step, manually apply WD to matrix params: `p.mul_(1.0 - 0.02 * optimizer_muon.param_groups[0]["lr"])`. Also `weight_decay=0.01` passed to AdamW for tok_emb and scalar optimizers (changed from Adam to AdamW).
+  5. **Overtone spectral embedding init** (after model creation):
+     ```python
+     U, S, V = torch.linalg.svd(self.tok_emb.weight.data, full_matrices=False)
+     target_S = S[0] * (1.0 / torch.arange(1, S.shape[0] + 1, dtype=S.dtype)) ** 0.5
+     self.tok_emb.weight.data = (U * target_S[None, :]) @ V
+     ```
+  6. **Phase-transition residual mixing init** (per block, after model creation):
+     ```python
+     phase = torch.sigmoid(torch.tensor(3.0 * (i / max(num_layers - 1, 1) - 0.5)))
+     block.resid_mix.data[0] = phase * torch.ones(block.resid_mix.shape[1])
+     block.resid_mix.data[1] = (1 - phase) * torch.ones(block.resid_mix.shape[1])
+     ```
+     Note: `resid_mix` is an existing 2xdim learnable parameter in the Block class. It mixes the residual stream with the initial embedding: `x = mix[0] * x + mix[1] * x0`. Early layers trust x0 more, late layers trust the residual.
+- 3 seeds: 1.1756, 1.1742, 1.1744 (mean 1.1748). Artifact: ~14.7MB.
+
+## Key takeaways and strategy notes
 
 1. **FP16 embeddings** are a near-free win (~0.006-0.007 BPB from reduced quant error)
 2. **Extended warmdown** (much larger than actual steps) reduces weight outliers → better compression
@@ -76,6 +120,7 @@
 5. **Higher LR + longer warmdown** is a productive combo
 6. **Lower LR reduces quant penalty** — there's a tradeoff between training quality and compression
 7. **Context length** (2048/4096) helps but costs throughput; local M2 Pro will be slower
+8. **TTT is a contestant-implemented strategy**: See LoRA TTT record analysis above for details. Prioritize strided/sliding window eval first (bigger win), then consider adding LoRA TTT on top.
 
 ## Experiment log
 
@@ -192,6 +237,13 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 **Current best**: val_bpb=1.9578, artifact=8.51MB. Config: LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32.
 **Progress**: 2.4294 → 1.9578 = 0.472 BPB over 19 experiments.
 
-**Next ideas**: With 8.51MB, try Adam WD on embed param, try 10L again, or try increasing warmup_steps.
+### Experiment 20: WD on embedding (2026-03-20 09:29)
+- **Hypothesis**: Embedding (Adam-optimized) has no WD. Adding decoupled WD should help compress it.
+- **Result**: roundtrip_val_bpb=1.9268 (vs 1.9578), artifact=8.46MB, **KEEP — 0.031 BPB! Biggest gain since LR sweep!**
+- Pre-quant=1.9223, quant penalty=0.0045. Step 10 loss 5.69 (slightly better).
+- **Key insight**: Embed WD is the biggest single non-LR improvement. The tied embedding is used twice (input+output), so regularizing it has outsized impact.
+
+**Current best**: val_bpb=1.9268, artifact=8.46MB.
+**Progress**: 2.4294 → 1.9268 = 0.503 BPB over 20 experiments.
 
 

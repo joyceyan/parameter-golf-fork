@@ -121,4 +121,12 @@
 - **Cumulative**: 2.4294 → 2.2960 → 2.1816 → 2.0603. Total: 0.369 BPB improvement from LR alone.
 - **Next ideas**: Keep pushing LR (0.20/0.20/0.25)? Diminishing returns may set in, but no signs yet. Watch artifact size.
 
+### Experiment 6: LR 0.20/0.20/0.25 (2026-03-20 01:14)
+- **Hypothesis**: LR trend continuing strong, push to 0.20/0.20/0.25.
+- **Result**: roundtrip_val_bpb=2.0063 (vs 2.0603), artifact=9.90MB, 176 steps, **KEEP — 0.054 BPB**
+- **Training dynamics**: Step 10 loss 6.00 (vs 6.23). Pre-quant=2.0028, quant penalty=0.0035 (best yet!).
+- **Gains slowing**: 0.133 → 0.114 → 0.121 → 0.054. Diminishing returns starting. Artifact: 9.90MB (was 8.85).
+- **Artifact concern**: 7.04 → 7.63 → 8.10 → 8.85 → 9.90 MB. At this rate, next LR step may push toward 16MB.
+- **Next ideas**: One more LR push (0.30/0.30/0.35) to find the peak? Or try a different axis: grad_clip_norm (records use 1.0), weight decay, or FP16 embed.
+
 

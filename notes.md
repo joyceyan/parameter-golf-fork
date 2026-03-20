@@ -127,10 +127,10 @@
 Ideas to try in future experiments. Remove when tried or invalidated.
 
 **High priority (proven wins from records):**
-- Implement sliding window eval (EVAL_STRIDE=64) — biggest untried win (~0.032 BPB on H100). See SlidingWindowEval record for implementation details.
+- ~~Sliding window eval~~ (done, exp 21)
 - Int6 quantization for middle layers — better zlib compression. See 10L_MixedPrecision record: round int8 to nearest step=4, giving 64 levels.
-- Overtone spectral embedding init — SVD-based power-law spectrum shaping. See SOTA record for exact formula.
-- Phase-transition residual mixing init — sigmoid-scheduled resid_mix per block. See SOTA record for formula.
+- ~~Overtone spectral embedding init~~ (exp 22 — 0.023 worse)
+- ~~Phase-transition residual mixing init~~ (exp 23 — 0.022 worse, needs long training)
 
 **Medium priority:**
 - NTK-RoPE extrapolation at eval time (EVAL_SEQ_LEN > TRAIN_SEQ_LEN). See WarmdownQuantization record.
@@ -268,6 +268,18 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - **Key insight**: Embed WD is the biggest single non-LR improvement. The tied embedding is used twice (input+output), so regularizing it has outsized impact.
 
 **Current best**: val_bpb=1.9268, artifact=8.46MB.
-**Progress**: 2.4294 → 1.9268 = 0.503 BPB over 20 experiments.
+
+### Experiment 21: Sliding window eval (2026-03-20 11:39)
+- **Result**: roundtrip_val_bpb=1.9216 (stride=512), artifact=8.46MB, **KEEP — 0.005 BPB**
+- Eval-only change. H100: use EVAL_STRIDE=64 for ~0.032 BPB.
+
+### Experiment 22: Overtone spectral embedding init (2026-03-20 12:29)
+- **Result**: roundtrip_val_bpb=1.9493, **DISCARDED — 0.023 worse**
+
+### Experiment 23: Phase-transition residual mixing init (2026-03-20 13:05)
+- **Result**: roundtrip_val_bpb=1.9484, **DISCARDED — 0.022 worse**
+- Both SOTA inits hurt with ~170 steps. Save for H100.
+
+**Progress**: 2.4294 → 1.9268 = 0.503 BPB over 23 experiments.
 
 

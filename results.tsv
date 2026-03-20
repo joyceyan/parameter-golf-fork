@@ -19,3 +19,6 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 08:18	c86fd10	1.962219	6.98	21.0	1024	discard	Muon WD 0.64 (quant penalty too high)
 2026-03-20 08:54	e76e916	1.961715	8.77	21.0	1024	discard	FP16 embed (too small vs variance)
 2026-03-20 09:29	3db9ba7	1.926774	8.46	21.0	1024	keep	add WD to embedding (Adam-optimized)
+2026-03-20 11:39	876212d	1.921599	8.46	49.0	1024	keep	sliding window eval (stride=512)
+2026-03-20 12:29	d1f1eca	1.949339	8.43	34.0	1024	discard	overtone spectral embedding init
+2026-03-20 13:05	fd75774	1.948436	8.30	35.0	1024	discard	phase-transition residual mixing init

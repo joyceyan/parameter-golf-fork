@@ -97,7 +97,7 @@ class Hyperparameters:
 
     # Sliding window eval: stride < seq_len means each token scored with more context.
     # H100 production: EVAL_STRIDE=64. Smoke tests: 512 (faster, still beneficial).
-    eval_stride: int = int(os.environ.get("EVAL_STRIDE", 512))
+    eval_stride: int = int(os.environ.get("EVAL_STRIDE", 0))
     eval_batch_seqs: int = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
@@ -550,10 +550,15 @@ class SplitOptimizers:
         if self.args.muon_wd > 0:
             updated[self.embed_key] = updated[self.embed_key] * (1.0 - self.args.muon_wd * embed_lr)
 
-        self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
+        scalar_lr = self.args.scalar_lr * lr_mul
+        self.adam_scalar.learning_rate = scalar_lr
         scalar_grads = {k: grads[k] for k in self.scalar_keys}
         scalar_params = {k: params[k] for k in self.scalar_keys}
         updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
+        # Decoupled weight decay for scalar params
+        if self.args.muon_wd > 0:
+            for k in self.scalar_keys:
+                updated[k] = updated[k] * (1.0 - self.args.muon_wd * scalar_lr)
 
         model.update(tree_unflatten(list(updated.items())))
 

@@ -8,3 +8,6 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 01:48	98e2364	2.000873	10.72	21.0	1024	keep	LR 0.30/0.30/0.35
 2026-03-20 02:23	42f91c1	1.990493	10.60	21.0	1024	keep	grad clip norm=1.0
 2026-03-20 02:58	05a4fdb	2.027962	12.87	21.0	1024	discard	reduce warmdown_iters to 400
+2026-03-20 03:34	4003e43	1.986876	10.47	21.0	1024	keep	Muon weight decay 0.02
+2026-03-20 04:09	a7fdc23	2.021464	11.20	21.0	1024	discard	10 layers (too slow locally)
+2026-03-20 04:48	0cb5372	2.001811	10.89	21.0	1024	discard	shorter muon momentum warmup (500->100)

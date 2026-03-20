@@ -155,4 +155,23 @@
 - **Key insight**: Extended warmdown (1200) provides gentle decay producing tighter weight distributions. Reducing it hurt compression heavily (12.87 vs 10.60MB) and final quality. Confirms records: extended warmdown is important for artifact compression.
 - **Next ideas**: Try increasing warmdown further? Or try weight decay (Muon WD=0.02), or try reducing base LR back while keeping warmdown=1200 (maybe 0.20 was the sweet spot with the current warmdown). Or try 10 layers.
 
+### Experiment 10: Muon weight decay 0.02 (2026-03-20 03:34)
+- **Result**: roundtrip_val_bpb=1.9869 (vs 1.9905), artifact=10.47MB, **KEEP — 0.004 BPB**
+- WD shrank artifact (10.47 vs 10.60MB) while slightly improving val_bpb.
+
+### Experiment 11: 10 layers (2026-03-20 04:09)
+- **Result**: roundtrip_val_bpb=2.0215 (vs 1.9869), artifact=11.20MB, **DISCARDED — too slow locally (158 steps vs 175)**
+
+### Experiment 12: Shorter muon momentum warmup 500→100 (2026-03-20 04:48)
+- **Result**: roundtrip_val_bpb=2.0018 (vs 1.9869), artifact=10.89MB, **DISCARDED — higher momentum hurt**
+- Slow momentum warmup acts as implicit regularization in our short-training regime.
+
+**Current best**: val_bpb=1.9869, LR 0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.02, 9L/512dim.
+
+**Strategy pivot**: Optimizer tuning near-exhausted. Options:
+1. Increase batch tokens (65K → 128K with grad accum)
+2. Adam WD on embed/scalar params
+3. Increase warmdown_iters (try 2000 — tighter weights)
+4. Different architecture ideas
+
 

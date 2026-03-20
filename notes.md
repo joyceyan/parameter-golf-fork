@@ -113,4 +113,12 @@
 - **Cumulative**: baseline 2.4294 → exp3 2.2960 → exp4 2.1816. Total improvement: 0.248 BPB from LR alone.
 - **Next ideas**: Push LR even higher (0.12/0.12/0.15)? The artifact size trend (7.04→7.63→8.10) suggests weights are getting bigger — may eventually hit 16MB. Also: FP16 embed to reduce the 0.011 quant penalty.
 
+### Experiment 5: Push LR higher (2026-03-20 00:39)
+- **Hypothesis**: LR trend is clear — keep pushing. Try 0.12/0.12/0.15.
+- **Result**: roundtrip_val_bpb=2.0603 (vs 2.1816), artifact=8.85MB, 176 steps, **KEEP — 0.121 BPB improvement!**
+- **Training dynamics**: Step 10 loss 6.23 (vs 6.51). Pre-quant val_bpb=2.0527, quant penalty=0.0076 (improved!). Loss still decreasing at step 176.
+- **Artifact trend**: 7.04 → 7.63 → 8.10 → 8.85 MB. Growing but still under 16MB.
+- **Cumulative**: 2.4294 → 2.2960 → 2.1816 → 2.0603. Total: 0.369 BPB improvement from LR alone.
+- **Next ideas**: Keep pushing LR (0.20/0.20/0.25)? Diminishing returns may set in, but no signs yet. Watch artifact size.
+
 

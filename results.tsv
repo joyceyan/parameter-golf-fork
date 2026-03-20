@@ -3,3 +3,4 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-19 22:52	41511cd	2.453442	7.43	21.5	1024	discard	FP16 embeddings (bypass int8 quant for tok_emb)
 2026-03-19 23:29	a87d080	2.295953	7.63	21.0	1024	keep	higher base LR (0.06/0.06/0.07)
 2026-03-20 00:04	fac17d3	2.181629	8.10	21.0	1024	keep	even higher LR (0.08/0.08/0.10)
+2026-03-20 00:39	ad69a37	2.060288	8.85	21.0	1024	keep	push LR higher (0.12/0.12/0.15)

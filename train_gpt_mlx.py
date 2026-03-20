@@ -95,9 +95,10 @@ class Hyperparameters:
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
     muon_wd: float = float(os.environ.get("MUON_WD", 0.32))
 
-    # Sliding window eval: stride=64 means each token scored with near-max context.
-    eval_stride: int = int(os.environ.get("EVAL_STRIDE", 64))
-    eval_batch_seqs: int = int(os.environ.get("EVAL_BATCH_SEQS", 16))
+    # Sliding window eval: stride < seq_len means each token scored with more context.
+    # H100 production: EVAL_STRIDE=64. Smoke tests: 512 (faster, still beneficial).
+    eval_stride: int = int(os.environ.get("EVAL_STRIDE", 512))
+    eval_batch_seqs: int = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
@@ -898,9 +899,11 @@ def eval_val_sliding(
             b += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).astype(np.float64)
             byte_count += float(b.sum())
 
-        if log_fn is not None and total_windows > batch_seqs:
+        if log_fn is not None:
             done = min(bi + batch_seqs, total_windows)
-            if done == batch_seqs or done == total_windows or done % (batch_seqs * 10) == 0:
+            total_batches = (total_windows + batch_seqs - 1) // batch_seqs
+            batch_num = bi // batch_seqs + 1
+            if batch_num == 1 or batch_num == total_batches or batch_num % max(total_batches // 4, 1) == 0:
                 log_fn(f"val_sliding_progress:{done}/{total_windows}")
 
     val_loss = loss_sum / token_count

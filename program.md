@@ -268,9 +268,10 @@ LOOP FOREVER:
 8. If the grep output in step 6 is empty, the run crashed. Run `tail -n 50 smoke.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up on that idea.
 9. Check artifact size: extract the byte count from `serialized_model_int8_zlib:XXXXX bytes`. If it exceeds 16,000,000, the experiment fails the size constraint — discard it regardless of val_bpb.
 10. Record the results in the TSV. Use the start time from step 4, and compute `duration_min` as total elapsed minutes from step 4 to now.
-11. **Update `notes.md`**: Append an entry with the hypothesis, result, qualitative insights, training dynamics observations (from step 7), and ideas for future experiments. Do this for every experiment — successes, failures, and crashes all contain useful information.
+11. **Update `notes.md`**: Append an entry to the "Experiment log" with the hypothesis, result, qualitative insights, training dynamics observations (from step 7), and ideas for future experiments. Do this for every experiment — successes, failures, and crashes all contain useful information.
   - For borderline improvements (< 0.005 val_bpb), note that the result may be noise and consider re-running to confirm.
-    - If the last ~5 experiments have been minor hyperparameter tweaks with tiny deltas, note that it's time to try something architecturally different.
+  - If the last ~5 experiments have been minor hyperparameter tweaks with tiny deltas, note that it's time to try something architecturally different.
+  - **Update the "Ideas queue"**: Add any new ideas sparked by this experiment. Remove ideas you just tried. This queue persists across context compressions, so always write ideas here rather than just mentioning them in your response.
 12. **Keep/discard decision** based on `roundtrip_val_bpb` (lower is better):
   - If roundtrip val_bpb **improved** (lower) AND artifact is under 16MB: keep the commit, advance the branch.
     - If roundtrip val_bpb is **equal or worse**, OR artifact exceeds 16MB: `git reset --hard HEAD~1` to revert.

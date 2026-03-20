@@ -6,3 +6,5 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 00:39	ad69a37	2.060288	8.85	21.0	1024	keep	push LR higher (0.12/0.12/0.15)
 2026-03-20 01:14	203314f	2.006272	9.90	21.0	1024	keep	LR 0.20/0.20/0.25
 2026-03-20 01:48	98e2364	2.000873	10.72	21.0	1024	keep	LR 0.30/0.30/0.35
+2026-03-20 02:23	42f91c1	1.990493	10.60	21.0	1024	keep	grad clip norm=1.0
+2026-03-20 02:58	05a4fdb	2.027962	12.87	21.0	1024	discard	reduce warmdown_iters to 400

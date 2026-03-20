@@ -142,4 +142,17 @@
   4. Smaller warmdown_iters (currently 1200, try reducing to give higher effective LR without bigger base LR)
   5. 10 layers (if WD helps control artifact size)
 
+### Experiment 8: Grad clip norm=1.0 (2026-03-20 02:23)
+- **Hypothesis**: Records use grad_clip_norm=1.0. Can stabilize high-LR training and constrain weight magnitudes.
+- **Result**: roundtrip_val_bpb=1.9905 (vs 2.0009), artifact=10.60MB, 175 steps, **KEEP — 0.010 BPB**
+- **Training dynamics**: Step 10 loss 5.71 (vs 5.88). Pre-quant=1.9884, quant penalty=0.0021 (lowest yet!).
+- **Key insight**: Grad clipping helped in two ways: (1) better training (loss lower at step 10), (2) smaller artifact (10.60 vs 10.72MB — clipping constrains weight magnitudes). Quant penalty also decreased.
+
+### Experiment 9: Reduce warmdown_iters to 400 (2026-03-20 02:58)
+- **Hypothesis**: Lower warmdown_iters gives higher effective LR multiplier (0.44 vs 0.15), 3x more total learning.
+- **Result**: roundtrip_val_bpb=2.0280 (vs 1.9905), artifact=12.87MB, 175 steps, **DISCARDED — 0.038 worse**
+- **Training dynamics**: Step 10 loss 5.60 (faster early learning) but final val_bpb worse. Artifact ballooned.
+- **Key insight**: Extended warmdown (1200) provides gentle decay producing tighter weight distributions. Reducing it hurt compression heavily (12.87 vs 10.60MB) and final quality. Confirms records: extended warmdown is important for artifact compression.
+- **Next ideas**: Try increasing warmdown further? Or try weight decay (Muon WD=0.02), or try reducing base LR back while keeping warmdown=1200 (maybe 0.20 was the sweet spot with the current warmdown). Or try 10 layers.
+
 

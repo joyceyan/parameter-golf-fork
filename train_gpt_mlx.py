@@ -93,6 +93,7 @@ class Hyperparameters:
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    muon_wd: float = float(os.environ.get("MUON_WD", 0.02))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
@@ -478,6 +479,9 @@ class Muon:
             g_eff = g + momentum * buf
             g_ortho = zeropower_newtonschulz5(g_eff, self.args.muon_backend_steps)
             scale = math.sqrt(max(1.0, float(p.shape[0]) / float(p.shape[1])))
+            # Decoupled weight decay (applied before gradient step)
+            if self.args.muon_wd > 0:
+                p = p * (1.0 - self.args.muon_wd * lr)
             out[k] = p - lr * (g_ortho * scale).astype(p.dtype)
         return out
 

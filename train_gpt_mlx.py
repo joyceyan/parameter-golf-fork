@@ -527,13 +527,17 @@ class SplitOptimizers:
 
         updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
 
-        self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
+        embed_lr = self.args.tied_embed_lr * lr_mul
+        self.adam_embed.learning_rate = embed_lr
         updated.update(
             self.adam_embed.apply_gradients(
                 {self.embed_key: grads[self.embed_key]},
                 {self.embed_key: params[self.embed_key]},
             )
         )
+        # Decoupled weight decay for embedding
+        if self.args.muon_wd > 0:
+            updated[self.embed_key] = updated[self.embed_key] * (1.0 - self.args.muon_wd * embed_lr)
 
         self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
         scalar_grads = {k: grads[k] for k in self.scalar_keys}

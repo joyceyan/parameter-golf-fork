@@ -181,6 +181,17 @@ WD trend: higher WD improves both pre-quant quality AND compression.
 | 0.04 | 1.9820 | 1.9844 | 10.33 |
 | 0.08 | 1.9767 | 1.9793 | 10.04 |
 
-**Current best**: val_bpb=1.9793, artifact=10.04MB. Config: LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.08.
+### WD sweep continued + FP16 embed revisit (exps 16-19)
+- **WD=0.16**: 1.9705, 9.49MB KEEP
+- **WD=0.32**: 1.9578, 8.51MB KEEP (best!)
+- **WD=0.64**: 1.9622, 6.98MB DISCARD (quant penalty 0.010)
+- **FP16 embed**: 1.9617, 8.77MB DISCARD (too small vs variance)
+
+WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs).
+
+**Current best**: val_bpb=1.9578, artifact=8.51MB. Config: LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32.
+**Progress**: 2.4294 → 1.9578 = 0.472 BPB over 19 experiments.
+
+**Next ideas**: With 8.51MB, try Adam WD on embed param, try 10L again, or try increasing warmup_steps.
 
 

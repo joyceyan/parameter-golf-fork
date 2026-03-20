@@ -98,4 +98,11 @@
 - **Conclusion**: FP16 embeddings are still a valid technique (proven by records), but the benefit (~0.002 BPB quant reduction) is drowned by smoke test variance (~0.026). This will help on production H100 runs where pre-quant performance is stable across seeds.
 - **Next ideas**: Extended warmdown (much larger WARMDOWN_ITERS), which is a training-time change that should show clearer directional signal.
 
+### Experiment 3: Higher base LR (2026-03-19 23:29)
+- **Hypothesis**: With warmdown_iters=1200 and ~3.5s/step on M2 Pro, the entire training runs in warmdown with LR_mul starting at only ~0.14. Higher base LR (0.06/0.06/0.07 from 0.04/0.04/0.05) compensates, matching the FP16Embed_WD3600 record's LR settings.
+- **Result**: roundtrip_val_bpb=2.2960 (vs baseline 2.4294), artifact=7.63MB, 175 steps, **KEEP — 0.133 BPB improvement!**
+- **Training dynamics**: Loss dropped faster (6.58 at step 10 vs baseline ~6.69). Pre-quant val_bpb=2.2829, quant penalty=0.0131 (slightly higher than baseline's 0.0112, expected with higher LR). Loss still decreasing at step 175.
+- **Key insight**: The baseline was severely under-learning with effective LR of only ~0.006 (0.04 * 0.14). Higher base LR dramatically improved learning. This is the most impactful change so far.
+- **Next ideas**: Try even higher LR (0.08/0.08/0.10)? Or combine with FP16 embeddings now that we have a better baseline. Also try extended warmdown to reduce the quant penalty.
+
 

@@ -122,6 +122,30 @@
 7. **Context length** (2048/4096) helps but costs throughput; local M2 Pro will be slower
 8. **TTT is a contestant-implemented strategy**: See LoRA TTT record analysis above for details. Prioritize strided/sliding window eval first (bigger win), then consider adding LoRA TTT on top.
 
+## Ideas queue
+
+Ideas to try in future experiments. Remove when tried or invalidated.
+
+**High priority (proven wins from records):**
+- Implement sliding window eval (EVAL_STRIDE=64) — biggest untried win (~0.032 BPB on H100). See SlidingWindowEval record for implementation details.
+- Int6 quantization for middle layers — better zlib compression. See 10L_MixedPrecision record: round int8 to nearest step=4, giving 64 levels.
+- Overtone spectral embedding init — SVD-based power-law spectrum shaping. See SOTA record for exact formula.
+- Phase-transition residual mixing init — sigmoid-scheduled resid_mix per block. See SOTA record for formula.
+
+**Medium priority:**
+- NTK-RoPE extrapolation at eval time (EVAL_SEQ_LEN > TRAIN_SEQ_LEN). See WarmdownQuantization record.
+- Late-K passthrough (last 2 layers' c_k.weight in fp16 instead of int8)
+- WD on scalar params (currently only Muon matrix + embed have WD)
+- Try different embed_lr:matrix_lr ratio (SOTA uses 0.10:0.04 = 2.5x; we use 0.35:0.30 = 1.17x)
+
+**Already tried/invalidated (do not re-try):**
+- ~~Extended warmdown~~: warmdown=1200 already puts entire training in warmdown on M2 Pro (LR_mul≈0.14). Reducing warmdown to 400 was worse. Current schedule is effectively "always decaying".
+- ~~LR above 0.30/0.30/0.35~~: LR=0.40 was worse (exp 14). 0.30 is optimal with current warmdown.
+- ~~Muon WD above 0.32~~: WD=0.64 increased quant penalty too much (exp 18). 0.32 is optimal.
+- ~~FP16 embed~~: Benefit too small (~0.0003) to measure in smoke tests. Save for H100 production.
+- ~~10 layers~~: Too slow on M2 Pro (158 vs 175 steps). Note for H100 production.
+- ~~Shorter momentum warmup~~: Higher momentum hurt in short-training regime (exp 12).
+
 ## Experiment log
 
 (Entries will be appended below as experiments complete)

@@ -9,7 +9,7 @@ Read `program.md` for full setup, tokenizer experiments, research methodology, a
 - **Artifact limit**: compressed model + code must be < **16,000,000 bytes** (16MB). Discard if exceeded.
 - **One change at a time**: exactly one modification per experiment. Never combine changes.
 - **Venv**: always use `source .venv/bin/activate &&` before python commands.
-- **No wallclock cap**: use `MAX_WALLCLOCK_SECONDS=0` for full runs. Let the script run to its iteration limit.
+- **Smoke tests only**: run on 1-shard smoke data with default 10-min wallclock cap. No full dataset runs locally — directional signal only.
 - **No new packages**: only use what's already installed (`mlx`, `numpy`, `sentencepiece`, `tqdm`, `huggingface-hub`, `datasets`, stdlib).
 
 ## Experiment loop checklist
@@ -19,31 +19,26 @@ Every iteration, follow these steps in order:
 1. **Read** `notes.md` and `results.tsv`. Every ~5 experiments, `git fetch upstream && git merge upstream/main --no-edit` for new records.
 2. **Design** one experiment. Edit `train_gpt_mlx.py` OR run a tokenizer experiment. Not both.
 3. **Commit**: `git commit -am "description"`
-4. **Record start time**: `TZ=America/Los_Angeles date "+%Y-%m-%d %H:%M"` — this marks the start of the full experiment (smoke + full run + overhead).
-5. **Smoke test** (1-shard, full pipeline):
+4. **Record start time**: `TZ=America/Los_Angeles date "+%Y-%m-%d %H:%M"`
+5. **Run** (1-shard smoke data, default 10-min wallclock cap):
    ```
    source .venv/bin/activate && DATA_PATH=./data/datasets/fineweb10B_sp1024_smoke python train_gpt_mlx.py > smoke.log 2>&1
    ```
-   Check: `grep "final_int8_zlib_roundtrip_exact" smoke.log`. If empty → crashed → fix or skip.
-6. **Full run**:
+6. **Extract results**:
    ```
-   source .venv/bin/activate && MAX_WALLCLOCK_SECONDS=0 python train_gpt_mlx.py > run.log 2>&1
+   grep "final_int8_zlib_roundtrip_exact" smoke.log
+   grep "serialized_model_int8_zlib" smoke.log
    ```
-7. **Extract results**:
-   ```
-   grep "final_int8_zlib_roundtrip_exact" run.log
-   grep "serialized_model_int8_zlib" run.log
-   ```
-8. **Read training dynamics**: `grep "train_loss" run.log` — note trajectory in `notes.md`.
-9. **Check crash**: if step 7 is empty, `tail -n 50 run.log`, fix or skip.
-10. **Check artifact size**: must be < 16,000,000 bytes.
-11. **Log to `results.tsv`** (tab-separated, 8 columns):
+7. **Read training dynamics**: `grep "train_loss" smoke.log` — note trajectory in `notes.md`.
+8. **Check crash**: if step 6 is empty, `tail -n 50 smoke.log`, fix or skip.
+9. **Check artifact size**: must be < 16,000,000 bytes.
+10. **Log to `results.tsv`** (tab-separated, 8 columns):
     ```
     started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	description
     ```
-12. **Update `notes.md`**: hypothesis, result, insights, training dynamics, future ideas.
-13. **Keep/discard**: improved val_bpb AND < 16MB → keep. Otherwise → `git reset --hard HEAD~1`.
-14. **Go to step 1. NEVER STOP.**
+11. **Update `notes.md`**: hypothesis, result, insights, training dynamics, future ideas.
+12. **Keep/discard**: improved val_bpb AND < 16MB → keep. Otherwise → `git reset --hard HEAD~1`.
+13. **Go to step 1. NEVER STOP.**
 
 ## Key principles
 

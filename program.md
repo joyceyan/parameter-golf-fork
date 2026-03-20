@@ -33,21 +33,19 @@ This setup is **idempotent** — it can be re-run safely. If `results.tsv`, `not
 5. **Read the in-scope files**: Read these files for full context:
   - `README.md` — repository context, challenge rules, leaderboard.
   - `train_gpt_mlx.py` — the file you modify. Model architecture, optimizer, hyperparameters, training loop. Everything is fair game.
-6. **Verify data exists**: Download both the full dataset and a 1-shard smoke test dataset (if they don't already exist):
-  - **Full data** (10 shards, for full runs):
-  - **Smoke test data** (1 shard, for quick end-to-end sanity checks):
+6. **Verify data exists**: Download the 1-shard smoke test dataset (if it doesn't already exist). This is all we need for local experiments:
     ```bash
     source .venv/bin/activate && python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1 --output-dir ./data/datasets/fineweb10B_sp1024_smoke
     ```
-   Both persist on disk and are reused across experiments.
+   The full 10-shard dataset is only needed for 8xH100 runs. Data persists on disk and is reused across experiments.
 7. **Initialize results.tsv**: Create `results.tsv` with just the header row (if it doesn't already exist). If it already exists, leave it as is.
 8. **Recover from interrupted runs**: The previous session may have been killed mid-experiment. Detect and reconcile:
   - Check `git log --oneline -1` for the latest commit message, and check if that commit has a corresponding row in `results.tsv`.
   - Check `git status` for uncommitted changes to `train_gpt_mlx.py`.
-  - Check if `run.log` or `smoke.log` exist with partial output.
+  - Check if `smoke.log` exists with partial output.
    **If there's a committed experiment with no matching TSV entry** (i.e. the run was interrupted before results were recorded):
-  - Check if `run.log` contains `final_int8_zlib_roundtrip_exact`. If yes, the run actually completed — extract the results, record them in the TSV and `notes.md`, and proceed normally.
-  - If `run.log` is incomplete or missing, ask yourself: does this experiment look promising based on partial logs or the commit message? If so, **re-run it** from the committed state. If not, `git reset --hard HEAD~1` to roll it back.
+  - Check if `smoke.log` contains `final_int8_zlib_roundtrip_exact`. If yes, the run actually completed — extract the results, record them in the TSV and `notes.md`, and proceed normally.
+  - If `smoke.log` is incomplete or missing, ask yourself: does this experiment look promising based on partial logs or the commit message? If so, **re-run it** from the committed state. If not, `git reset --hard HEAD~1` to roll it back.
    **If there are uncommitted changes**: These are likely mid-edit changes from an interrupted session. `git checkout -- train_gpt_mlx.py` to discard them and start clean from the last committed state.
    **If everything is clean** (latest commit matches latest TSV entry, no uncommitted changes): no recovery needed.
 9. **Check for existing progress**: Read `results.tsv` and `notes.md` (if they exist).
@@ -57,13 +55,13 @@ This setup is **idempotent** — it can be re-run safely. If `results.tsv`, `not
 
 ## Experimentation
 
-Each experiment runs locally on a **MacBook with M2 Pro** (16GB unified memory) using MLX. The training script runs for its default iteration limit (20K steps) with no wallclock cap. You launch it as:
+Each experiment runs locally on a **MacBook with M2 Pro** (16GB unified memory) using MLX. We run **smoke tests only** (1-shard dataset, default 10-min wallclock cap) to get fast directional signal. Full-dataset runs are done on 8xH100s. Launch as:
 
 ```bash
-source .venv/bin/activate && MAX_WALLCLOCK_SECONDS=0 python train_gpt_mlx.py > run.log 2>&1
+source .venv/bin/activate && DATA_PATH=./data/datasets/fineweb10B_sp1024_smoke python train_gpt_mlx.py > smoke.log 2>&1
 ```
 
-Setting `MAX_WALLCLOCK_SECONDS=0` disables the default 10-min wallclock cap, letting the script run to its natural iteration limit. On the M2 Pro this may take several hours per experiment — plan accordingly.
+Each smoke test takes ~15-20 minutes (warmup + 10-min training + eval). This gives enough signal to compare experiments directionally. Absolute val_bpb numbers will be higher than full-data runs — what matters is the relative delta between experiments.
 
 **What you CAN do:**
 
@@ -80,7 +78,7 @@ Setting `MAX_WALLCLOCK_SECONDS=0` disables the default 10-min wallclock cap, let
 - **Architecture and hyperparameter changes transfer well** between platforms — these are the most valuable experiments to run locally.
 - **MLX-specific tricks won't help** the final submission. Don't optimize for MLX internals.
 - **Memory constraints differ**: M2 Pro has 16GB unified memory vs. 80GB per H100. Don't self-censor ideas that would OOM locally but fit easily on H100 — note them in the lab notebook for later. Conversely, don't assume ideas that fit in 16GB will be the best use of 80GB.
-- **Local runs take much longer** than 8xH100. The same 20K iterations might take hours on M2 Pro vs. ~10 min on H100. We let runs complete naturally to get the best signal. Use local runs to validate that an idea *helps*, not to match exact final scores.
+- **Local runs are smoke tests only**: 1-shard data with 10-min wallclock cap gives fast directional signal (~15-20 min per experiment). Full-data runs happen on 8xH100s. Use local runs to validate that an idea *helps*, not to match exact final scores.
 
 **The goal is simple: get the lowest post-quantization val_bpb** (the `final_int8_zlib_roundtrip_exact` metric). This is the metric that matters for the challenge, since submissions are evaluated on compressed artifacts. Raw training val_bpb is a useful signal during training but the roundtrip metric is ground truth.
 
@@ -99,10 +97,10 @@ Follow these principles to experiment like a real researcher:
 **Read the training dynamics**: Don't just look at the final val_bpb. After each run, grep the training log for loss over time:
 
 ```bash
-grep "train_loss" run.log
+grep "train_loss" smoke.log
 ```
 
-Ask yourself: Was loss still decreasing at the end? (→ train longer or the idea has more room). Did it spike mid-training? (→ LR too high or instability). Plateau early? (→ architecture bottleneck, not a training problem). Record these observations in `notes.md` — they're often more informative than the final number.
+Ask yourself: Was loss still decreasing at the end? (→ the idea has more room with full data). Did it spike mid-training? (→ LR too high or instability). Plateau early? (→ architecture bottleneck, not a training problem). Record these observations in `notes.md` — they're often more informative than the final number.
 
 **Reproduce before innovating**: If an upstream merged record beats your current best, try to reproduce their approach in `train_gpt_mlx.py` first. Start from a working reproduction, then improve incrementally. Don't reinvent from scratch what someone else has already validated.
 
@@ -135,13 +133,13 @@ The default tokenizer is a 1024-vocab SentencePiece BPE model. You may experimen
      --tokenizer-config ./data/tokenizer_specs.json
   ```
    This creates `./data/tokenizers/fineweb_2048_bpe.model` and `./data/datasets/fineweb10B_sp2048/`.
-3. Run training with the new tokenizer:
+3. Run training with the new tokenizer (smoke test on 1-shard data):
   ```bash
    source .venv/bin/activate && \
    VOCAB_SIZE=2048 \
    TOKENIZER_PATH=./data/tokenizers/fineweb_2048_bpe.model \
-   DATA_PATH=./data/datasets/fineweb10B_sp2048 \
-   MAX_WALLCLOCK_SECONDS=0 python train_gpt_mlx.py > run.log 2>&1
+   DATA_PATH=./data/datasets/fineweb10B_sp2048_smoke \
+   python train_gpt_mlx.py > smoke.log 2>&1
   ```
 4. You must also update `VOCAB_SIZE` in `train_gpt_mlx.py` defaults (or the Hyperparameters class) if you want the tokenizer change to persist across runs without env vars. The script validates that `VOCAB_SIZE` matches the tokenizer at startup.
 
@@ -162,8 +160,8 @@ final_int8_zlib_roundtrip_exact val_loss:X.XXXXXXXX val_bpb:X.XXXXXXXX
 You can extract the key metrics from the log file:
 
 ```bash
-grep "final_int8_zlib_roundtrip_exact" run.log
-grep "serialized_model_int8_zlib" run.log
+grep "final_int8_zlib_roundtrip_exact" smoke.log
+grep "serialized_model_int8_zlib" smoke.log
 ```
 
 ## Logging results
@@ -180,7 +178,7 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2. git commit hash (short, 7 chars)
 3. roundtrip val_bpb achieved (from `final_int8_zlib_roundtrip_exact`) — use 0.000000 for crashes
 4. artifact size in MB, round to .2f (divide `serialized_model_int8_zlib` bytes by 1,000,000) — use 0.0 for crashes
-5. duration of the full run in minutes, round to .1f — use 0.0 for crashes
+5. duration in minutes, round to .1f — use 0.0 for crashes
 6. vocab size used (e.g. 1024, 2048) — helps track tokenizer experiments
 7. status: `keep`, `discard`, or `crash`
 8. short text description of what this experiment tried
@@ -238,49 +236,43 @@ LOOP FOREVER:
   - A tokenizer experiment (new vocab size — see **Tokenizer experiments** section)
    Do not combine multiple changes in a single experiment. If you want to test a new LR *and* a new activation function, run them as two separate experiments.
 3. `git commit -am "description of experiment"`
-4. **Record start time**: Save the current time for tracking total experiment duration (smoke test + full run + overhead):
+4. **Record start time**:
   ```bash
    TZ=America/Los_Angeles date "+%Y-%m-%d %H:%M"
   ```
-5. **Smoke test**: Run a quick end-to-end check using the 1-shard dataset. This completes the full pipeline (train → quantize → evaluate) so you get a real directional signal on roundtrip val_bpb, not just a crash check:
+5. **Run** (1-shard smoke data, default 10-min wallclock cap — this IS the experiment, not just a pre-check):
   ```bash
    source .venv/bin/activate && DATA_PATH=./data/datasets/fineweb10B_sp1024_smoke python train_gpt_mlx.py > smoke.log 2>&1
   ```
    If using a non-default tokenizer, also set `VOCAB_SIZE` and `TOKENIZER_PATH` env vars.
-  - Check if it completed: `grep "final_int8_zlib_roundtrip_exact" smoke.log`. If empty, read `tail -n 50 smoke.log` and fix the issue before proceeding.
-  - Note any observations from the smoke test (e.g. training loss trajectory, directional val_bpb, obvious instability) in `notes.md`.
-  - If the smoke test crashes and the idea is fundamentally broken, skip straight to step 13 (log crash in TSV and notes.md, revert).
-6. **Full run**: If the smoke test passed, run the full experiment (no wallclock cap — runs to iteration limit):
+  - Check if it completed: `grep "final_int8_zlib_roundtrip_exact" smoke.log`. If empty, read `tail -n 50 smoke.log` and fix the issue.
+  - If the run crashes and the idea is fundamentally broken, skip straight to step 12 (log crash in TSV and notes.md, revert).
+6. Read out the results:
   ```bash
-   source .venv/bin/activate && MAX_WALLCLOCK_SECONDS=0 python train_gpt_mlx.py > run.log 2>&1
+   grep "final_int8_zlib_roundtrip_exact" smoke.log
+   grep "serialized_model_int8_zlib" smoke.log
   ```
-   If using a non-default tokenizer, also set `VOCAB_SIZE`, `TOKENIZER_PATH`, and `DATA_PATH` env vars (see **Tokenizer experiments** section).
-7. Read out the results:
+7. **Read training dynamics**: Check the loss trajectory, not just the final number:
   ```bash
-   grep "final_int8_zlib_roundtrip_exact" run.log
-   grep "serialized_model_int8_zlib" run.log
-  ```
-8. **Read training dynamics**: Check the loss trajectory, not just the final number:
-  ```bash
-   grep "train_loss" run.log
+   grep "train_loss" smoke.log
   ```
    Note: Was loss still decreasing at the end? Did it spike or plateau? These observations go in `notes.md` and inform future experiments.
-9. If the grep output in step 7 is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up on that idea.
-10. Check artifact size: extract the byte count from `serialized_model_int8_zlib:XXXXX bytes`. If it exceeds 16,000,000, the experiment fails the size constraint — discard it regardless of val_bpb.
-11. Record the results in the TSV. Use the start time from step 4, and compute `duration_min` as total elapsed minutes from step 4 to now (covering smoke test + full run + overhead).
-12. **Update `notes.md`**: Append an entry with the hypothesis, result, qualitative insights, training dynamics observations (from step 8), and ideas for future experiments. Include observations from both the smoke test and the full run. Do this for every experiment — successes, failures, and crashes all contain useful information.
+8. If the grep output in step 6 is empty, the run crashed. Run `tail -n 50 smoke.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up on that idea.
+9. Check artifact size: extract the byte count from `serialized_model_int8_zlib:XXXXX bytes`. If it exceeds 16,000,000, the experiment fails the size constraint — discard it regardless of val_bpb.
+10. Record the results in the TSV. Use the start time from step 4, and compute `duration_min` as total elapsed minutes from step 4 to now.
+11. **Update `notes.md`**: Append an entry with the hypothesis, result, qualitative insights, training dynamics observations (from step 7), and ideas for future experiments. Do this for every experiment — successes, failures, and crashes all contain useful information.
   - For borderline improvements (< 0.005 val_bpb), note that the result may be noise and consider re-running to confirm.
     - If the last ~5 experiments have been minor hyperparameter tweaks with tiny deltas, note that it's time to try something architecturally different.
-13. **Keep/discard decision** based on `roundtrip_val_bpb` (lower is better):
+12. **Keep/discard decision** based on `roundtrip_val_bpb` (lower is better):
   - If roundtrip val_bpb **improved** (lower) AND artifact is under 16MB: keep the commit, advance the branch.
     - If roundtrip val_bpb is **equal or worse**, OR artifact exceeds 16MB: `git reset --hard HEAD~1` to revert.
     - For borderline improvements (< 0.005), consider re-running the same config to confirm the gain is real before keeping.
-14. Go back to step 1.
+13. Go back to step 1.
 
-**Timeout**: Runs complete at the default iteration limit (20K steps) with no wallclock cap. On the M2 Pro this may take several hours. If a run appears stuck (no new log output for 30+ minutes), kill it and treat it as a failure (discard and revert).
+**Timeout**: Smoke tests use the default 10-min wallclock cap and typically complete in ~15-20 min total (warmup + training + eval). If a run appears stuck (no new log output for 30+ minutes), kill it and treat it as a failure (discard and revert).
 
 **Crashes**: If a run crashes (OOM, or a bug, or etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash" as the status in the TSV, and move on.
 
 **NEVER STOP**: Once the experiment loop has begun (after the initial setup), do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. You are autonomous. If you run out of ideas, think harder — read the README for new angles, study what the leaderboard winners did, try combining previous near-misses, try more radical architectural changes. The loop runs until the human interrupts you, period.
 
-As an example use case, a user might leave you running while they sleep. Full runs may take several hours each on the M2 Pro, so expect only a handful of experiments overnight. The user then wakes up to experimental results, all completed by you while they slept!
+As an example use case, a user might leave you running while they sleep. Smoke tests take ~15-20 min each, so you can run many experiments per session. The user then wakes up to a rich set of directional results, ready to port the best ideas to 8xH100 full runs.

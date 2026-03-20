@@ -22,3 +22,5 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 11:39	876212d	1.921599	8.46	49.0	1024	keep	sliding window eval (stride=512)
 2026-03-20 12:29	d1f1eca	1.949339	8.43	34.0	1024	discard	overtone spectral embedding init
 2026-03-20 13:05	fd75774	1.948436	8.30	35.0	1024	discard	phase-transition residual mixing init
+2026-03-20 13:43	9ddff0b	1.919193	8.30	34.0	1024	keep	WD on scalar params
+2026-03-20 14:18	036ba0f	1.919436	8.28	35.0	1024	discard	higher embed LR ratio (0.50:0.30)

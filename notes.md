@@ -135,8 +135,8 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 **Medium priority:**
 - NTK-RoPE extrapolation at eval time (EVAL_SEQ_LEN > TRAIN_SEQ_LEN). See WarmdownQuantization record.
 - Late-K passthrough (last 2 layers' c_k.weight in fp16 instead of int8)
-- WD on scalar params (currently only Muon matrix + embed have WD)
-- Try different embed_lr:matrix_lr ratio (SOTA uses 0.10:0.04 = 2.5x; we use 0.35:0.30 = 1.17x)
+- ~~WD on scalar params~~ (exp 24 — 0.008 BPB, kept)
+- ~~Embed LR ratio~~ (exp 25 — no change)
 
 **Already tried/invalidated (do not re-try):**
 - ~~Extended warmdown~~: warmdown=1200 already puts entire training in warmdown on M2 Pro (LR_mul≈0.14). Reducing warmdown to 400 was worse. Current schedule is effectively "always decaying".
@@ -280,6 +280,14 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - **Result**: roundtrip_val_bpb=1.9484, **DISCARDED — 0.022 worse**
 - Both SOTA inits hurt with ~170 steps. Save for H100.
 
-**Progress**: 2.4294 → 1.9268 = 0.503 BPB over 23 experiments.
+### Experiment 24: WD on scalar params (2026-03-20 13:43)
+- **Result**: roundtrip_val_bpb=1.9192 (vs 1.9268), artifact=8.30MB, **KEEP — 0.008 BPB**
+- WD=0.32 now applies to all param groups (matrix, embed, scalar).
+
+### Experiment 25: Higher embed LR ratio (2026-03-20 14:18)
+- **Result**: roundtrip_val_bpb=1.9194 (vs 1.9192), **DISCARDED — no change**
+
+**Current best**: val_bpb=1.9192, artifact=8.30MB.
+**Progress**: 2.4294 → 1.9192 = 0.510 BPB over 25 experiments.
 
 

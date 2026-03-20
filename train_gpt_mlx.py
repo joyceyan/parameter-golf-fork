@@ -92,7 +92,7 @@ class Hyperparameters:
     muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
-    grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 

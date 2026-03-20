@@ -129,4 +129,17 @@
 - **Artifact concern**: 7.04 → 7.63 → 8.10 → 8.85 → 9.90 MB. At this rate, next LR step may push toward 16MB.
 - **Next ideas**: One more LR push (0.30/0.30/0.35) to find the peak? Or try a different axis: grad_clip_norm (records use 1.0), weight decay, or FP16 embed.
 
+### Experiment 7: LR 0.30/0.30/0.35 (2026-03-20 01:48)
+- **Hypothesis**: One more LR push to find the ceiling.
+- **Result**: roundtrip_val_bpb=2.0009 (vs 2.0063), artifact=10.72MB, 176 steps, **KEEP — 0.005 BPB (marginal)**
+- **Training dynamics**: Step 10 loss 5.88 (vs 6.00). Pre-quant=1.9984, quant penalty=0.0025 (best yet).
+- **LR diminishing returns confirmed**: Gains: 0.133 → 0.114 → 0.121 → 0.054 → 0.005. LR is near optimal for this warmdown schedule.
+- **Artifact**: 10.72MB (growing ~1MB per LR step). Cannot push much further without hitting 16MB.
+- **Strategy shift**: LR sweep is done. Time to try different axes:
+  1. FP16 embeddings (quant penalty now only 0.0025, less headroom but still worth trying)
+  2. Grad clip norm=1.0 (records use this)
+  3. Weight decay (Muon WD=0.02 — records show this helps compression)
+  4. Smaller warmdown_iters (currently 1200, try reducing to give higher effective LR without bigger base LR)
+  5. 10 layers (if WD helps control artifact size)
+
 

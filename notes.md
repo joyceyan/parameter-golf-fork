@@ -214,7 +214,7 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - ~~Reduce Newton-Schulz iterations 5→3~~ (exp 30 — 0.108 worse, NS quality matters more than speed savings)
 - Grad clipping in MLX instead of CPU. Current `clip_grad_tree` converts every gradient to numpy (CPU roundtrip mid-step). Rewrite entirely in mx.array ops to stay on Metal GPU.
 - Larger microbatch chunks (`MLX_MAX_MICROBATCH_TOKENS=16384` or `MLX_EAGER_EVAL=0`). Currently 8K chunks = 8 forward/backward passes per microbatch. Fewer chunks = less overhead.
-- Fused QKV projection. Single `c_qkv(x)` matmul + split instead of 3 separate `c_q/c_k/c_v` projections. Better hardware utilization. **Transfers to H100.**
+- ~~Fused QKV projection~~ (exp 33 — 0.058 worse, Muon needs separate projections for independent orthogonalization)
 - Shorter sequence length (`TRAIN_SEQ_LEN=512`). Attention is O(N²) — halving seq_len gives ~4x cheaper attention per token. More steps in 10 min. Tradeoff: less context per token. **Transfers to H100** (MixedQuant record already used seq=1024 for throughput).
 - Fewer layers + wider MLP (e.g. 7L MLP_MULT=3 instead of 9L MLP_MULT=2). Fewer sequential passes, more capacity per layer. MLPs are parallel, depth is sequential. **Transfers to H100.**
 
@@ -416,6 +416,12 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Pre-quant=1.9138, quant penalty=0.0049 (vs ~0.004 baseline).
 - **Key insight**: Our int8 quant penalty is already very low (~0.004). Late-K passthrough added 0.36MB but didn't reduce the penalty enough. This technique is more valuable with int6 quantization (used in SOTA) where quant penalty is much higher. Not worth the artifact cost at pure int8.
 
+### Experiment 33: Fused QKV projection (2026-03-20 20:43)
+- **Hypothesis**: Single c_qkv matmul instead of 3 separate c_q/c_k/c_v. Fewer kernel launches, better hardware utilization, transfers to H100.
+- **Result**: roundtrip_val_bpb=1.9734 (vs 1.9158), artifact=8.21MB, **DISCARDED — 0.058 worse!**
+- Pre-quant=1.9683, step_avg=3500ms (not faster than 3478ms). 172 steps (fewer).
+- **Key insight**: Fused QKV hurts because Muon orthogonalizes each 2D matrix independently. Separate Q/K/V allows the optimizer to learn each projection in its own orthogonal subspace. A single 512x1024 matrix constrains the learning dynamics. This is a known interaction with Muon — don't fuse projections that Muon optimizes separately.
+
 **Current best**: val_bpb=1.9158, artifact=8.30MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32 (all params), warmup=5.
-**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 32 experiments.
+**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 33 experiments.
 

@@ -88,7 +88,7 @@
   6. `eval_val_ttt_lora` function: find doc boundaries via BOS_ID=1, sort docs by length for batching efficiency, process in batches of 64. Per chunk: forward with grad if training needed, accumulate BPB scores, then one Adam step (betas=0.9/0.95) on non-final chunks. Reset LoRA + optimizer between docs.
 - **Ablation**: ~90% of gain from doc isolation + strided eval, ~10% from LoRA TTT itself.
 
-### SOTA: SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit (1.1748)
+### SOTA (old): SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit (1.1748)
 
 - **Config**: NUM_LAYERS=10, WARMDOWN_ITERS=2500, TIED_EMBED_LR=0.10, MATRIX_LR=0.04, SCALAR_LR=0.04, EVAL_STRIDE=64 (runtime env var). Adam weight_decay=0.01 for tok_emb and scalar params. Muon WD=0.02 (decoupled, applied manually).
 - **Code changes** (combines multiple techniques):
@@ -111,40 +111,130 @@
      Note: `resid_mix` is an existing 2xdim learnable parameter in the Block class. It mixes the residual stream with the initial embedding: `x = mix[0] * x + mix[1] * x0`. Early layers trust x0 more, late layers trust the residual.
 - 3 seeds: 1.1756, 1.1742, 1.1744 (mean 1.1748). Artifact: ~14.7MB.
 
+### MixedQuant_Int6Int8_SlidingWindow (1.1630) — 2026-03-19
+
+- **Config**: 9L, 512dim, MLP_MULT=3 (hidden=1536), seq=1024, batch=524288, EVAL_STRIDE=64
+- **Code changes** (4 orthogonal improvements):
+  1. **MLP 3x expansion**: hidden 1024→1536 — largest single contributor. Enabled by int6 compression savings.
+  2. **Mixed int6/int8 quantization**: int6 per-row on all 2D block weights (STE-protected), int8 per-row on tok_emb (no STE). Reduces quant penalty from +0.048 to +0.0015 BPB (32x improvement). Int6 stored in int8 containers, zlib compresses zero high bits.
+  3. **Seq=1024 + batch=524K**: Shorter sequences = faster steps (48.4ms vs 55.5ms) = more training. 12395 steps × 524K = ~6.5B tokens.
+  4. **Sliding window eval stride=64**: ~0.034 BPB free improvement.
+- Optimizer: same defaults as baseline (LR=0.04/0.04/0.05).
+- 15.35MB artifact. Eval time: 73s.
+
+### Seq2048_FP16Emb_TunedLR (1.1598) — 2026-03-19
+
+- **Config**: 10L, 512dim, MLP_HIDDEN=1344 (2.625x), seq=2048, MATRIX_LR=0.02, SCALAR_LR=0.02, TIED_EMBED_LR=0.04, MUON_MOMENTUM=0.99 (warmup 0.92→0.99 over 1500 steps), MUON_WEIGHT_DECAY=0.04, ADAM_WEIGHT_DECAY=0.04, WARMDOWN_ITERS=3000, GRAD_CLIP_NORM=0.3, EVAL_STRIDE=64
+- **Code changes**:
+  1. **STE int6 QAT**: fake_quantize_int6 on every CastedLinear forward pass. Eliminates quant gap entirely (0.000 BPB penalty).
+  2. **Full int6 quantization** on all block weights (layers 0-10).
+  3. **zstd-22 compression**: better than zlib for int6 data, saves ~1.5MB.
+  4. **FP16 tied embedding passthrough**.
+  5. **10 layers** (funded by int6+zstd savings).
+  6. **Sliding window eval stride=64**.
+- 8319 steps at ~72ms/step. 15.56MB artifact. **QAT overhead: ~28%** (72ms vs 69ms without).
+- **Notable**: WD=0.04 for both Muon and AdamW — confirms 0.04 as optimal.
+
+### smeargate_orthoinit_muonwd (1.1556) — 2026-03-19
+
+- **Config**: 9L, 512dim, MLP_MULT=3, seq=1024, batch=524288, MATRIX_LR=0.02, SCALAR_LR=0.02, TIED_EMBED_LR=0.03, MUON_MOMENTUM=0.99 (warmup 0.92→0.99 over 1500 steps), MUON_WEIGHT_DECAY=0.01, WARMDOWN_ITERS=3000, EVAL_STRIDE=64
+- **Code changes** (introduces 3 new architectural techniques):
+  1. **SmearGate**: learned per-dim gate (~512 params) blending current + previous token embedding: `gate = sigmoid(self.gate); output = gate * curr + (1-gate) * prev`. Gate init: sigmoid(3.0)≈0.95 (near-identity). Adds bigram context at embedding layer for free.
+  2. **BigramHash(4096, dim=128)**: hash table mapping `(prev*92821+cur)%4096` to 128-dim embeddings, projected to 512. ~524K params. Additive bigram signal complementing SmearGate.
+  3. **Orthogonal init**: all CastedLinear weights initialized with `orthogonal_(gain=1.0)`. Output projections scaled by `1/sqrt(2*num_layers)` (muP convention). Uniform gradient flow from step 1.
+  4. **Int6 QAT STE** + **zstd-22** + **FP16 embed passthrough** + **sliding window stride=64**.
+- 12047 steps, 50ms/step. 15.1MB artifact. Quant gap: ~0.0001 BPB (QAT nearly eliminates it).
+- **U-Net skip connections**: 4 encoder + 5 decoder layers with learned skip weights.
+
+### Int6_MLP3x_SmearGate_BigramHash_MuonWD_SWA (1.1458) — 2026-03-20
+
+- **Config**: 9L, 512dim, MLP_MULT=3, seq=2048, batch=786432, MATRIX_LR=0.02, SCALAR_LR=0.02, TIED_EMBED_LR=0.03, MUON_MOMENTUM=0.99 (warmup 0.92→0.99 over 1500 steps), MUON_WEIGHT_DECAY=0.04, ADAM_WEIGHT_DECAY=0.01, WARMDOWN_ITERS=3000, EVAL_STRIDE=64, SWA_EVERY=50, SWA_START_FRAC=0.5, GRAD_CLIP_NORM=0.3
+- **Code changes** (builds on smeargate_orthoinit_muonwd + adds SWA + higher WD):
+  1. All techniques from smeargate_orthoinit_muonwd (SmearGate, BigramHash(4096), OrthoInit, MLP3x, int6 QAT, zstd-22, FP16 embed, sliding window).
+  2. **SWA**: average weights every 50 steps over last 50% of training (~30 checkpoints). Produces smoother weight distributions that quantize better. Swept swa_every from 200 down to 25; optimal at 50.
+  3. **Muon WD=0.04** (up from 0.01). AdamW WD stays at 0.01.
+- 7379 steps at 81.3ms/step. ~22M params. 15.86MB artifact.
+- 3 seeds: 1.1460, 1.1466, 1.1449 (mean 1.1458, std 0.0008).
+- Pre-quant: 1.1616. Quant penalty: 0.016 BPB.
+
+### SOTA (current): 10L_Int5MLP_MuonWD04_SWA50 (1.14276) — 2026-03-20
+
+- **Config**: 10L, 512dim, 8 heads, 4 KV heads (GQA), MLP 3x (hidden=1536), relu^2, seq=2048, batch=786K, MATRIX_LR=0.02, MUON_WEIGHT_DECAY=0.04, ADAM_WEIGHT_DECAY=0.04, WARMDOWN_ITERS=3000, WARMUP=20, GRAD_CLIP_NORM=0.3, EVAL_STRIDE=64, SWA_EVERY=50, SWA_START_FRAC=0.4
+- **Code changes** (builds on Int6_MLP3x_SmearGate_BigramHash_MuonWD_SWA + 3 key additions):
+  1. **Int5 quantization for MLP** [-16,15]: MLP weights quantized to int5 (1.88x zstd ratio) vs int6 for attention (1.51x ratio). Saves ~1.86MB vs uniform int6, funding a 10th layer. FP16 for tied embeddings and last-layer key projections.
+  2. **BigramHash(10240)**: up from 4096 buckets. Reduces token-pair hash collisions (+0.001 bpb improvement).
+  3. **SWA start_frac=0.4** (down from 0.5): collect checkpoints only from last 40% of warmdown (most converged). Quality over quantity: 24 checkpoints averaged every 50 steps.
+  4. **AdamW WD=0.04** for embeddings/scalars (up from 0.01). **Validates our independent finding that embedding WD matters!**
+  5. **3% magnitude pruning** on weights.
+  6. SmearGate, BigramHash(10240), OrthoInit, MLP3x, U-Net skips, tied embeddings.
+- 3 seeds: 1.14271, 1.14298, 1.14260 (mean **1.14276**, std 0.00016). ~15.9MB artifact.
+- **Ablation**: 9L int6 (1.1485) → +int5 MLP+10L (1.1453, -0.003) → +WD+warmdown (1.1452) → +SWA (1.1446) → +bigram8192 (1.1434) → +bigram10240 (**1.1426**).
+
+### Upstream train_gpt.py changes (2026-03-20)
+
+- **LoRA TTT code removed entirely** from base train_gpt.py. All TTT classes (BatchedLinearLoRA, BatchedTTTLoRA, eval_val_ttt_lora) and related function signatures stripped. Contestants wanting TTT must now implement it fully in their submission code.
+- Block.forward, CausalSelfAttention.forward, and GPT.forward simplified — removed q_delta, v_delta, lora parameters.
+
 ## Key takeaways and strategy notes
 
 1. **FP16 embeddings** are a near-free win (~0.006-0.007 BPB from reduced quant error)
 2. **Extended warmdown** (much larger than actual steps) reduces weight outliers → better compression
-3. **10 layers** possible if we use weight decay or mixed precision to fit in 16MB
-4. **Sliding window eval** is a huge win but requires eval-time code changes
+3. **10 layers** possible with int6/int5 + zstd compression (10L is now standard in top records)
+4. **Sliding window eval** is a huge win (~0.034 BPB) and standard in all top records
 5. **Higher LR + longer warmdown** is a productive combo
-6. **Lower LR reduces quant penalty** — there's a tradeoff between training quality and compression
-7. **Context length** (2048/4096) helps but costs throughput; local M2 Pro will be slower
-8. **TTT is a contestant-implemented strategy**: See LoRA TTT record analysis above for details. Prioritize strided/sliding window eval first (bigger win), then consider adding LoRA TTT on top.
+6. **Lower LR reduces quant penalty** — tradeoff between training quality and compression
+7. **Context length**: seq=2048 is now standard in top records (seq=1024 used by some for throughput)
+8. **TTT is a contestant-implemented strategy** — LoRA TTT code was removed from upstream train_gpt.py
+9. **QAT (STE int6)** eliminates quant gap entirely (~28% overhead in step time, but worth it)
+10. **MLP 3x expansion** is the single largest architectural win — enabled by int6/int5 compression savings
+11. **SmearGate + BigramHash** provides cheap bigram context at embedding layer
+12. **SWA** produces smoother weight distributions that quantize better (start_frac=0.4, every=50 steps)
+13. **zstd-22** saves ~5% over zlib-9 on int6 data — critical for fitting more layers/params under 16MB
+14. **Int5 for MLP, int6 for attention** — mixed precision quantization saves ~1.86MB
+15. **WD=0.04** confirmed optimal for both Muon and AdamW (our embedding WD finding validated!)
+16. **Orthogonal init** accelerates convergence with Muon (already-orthogonal → useful updates immediately)
+17. **Magnitude pruning (3%)** provides small additional compression
 
 ## Ideas queue
 
 Ideas to try in future experiments. Remove when tried or invalidated.
 
-**High priority (proven wins from records):**
-- ~~Sliding window eval~~ (done, exp 21)
-- Int6 quantization for middle layers — better zlib compression. See 10L_MixedPrecision record: round int8 to nearest step=4, giving 64 levels.
-- ~~Overtone spectral embedding init~~ (exp 22 — 0.023 worse)
-- ~~Phase-transition residual mixing init~~ (exp 23 — 0.022 worse, needs long training)
+**High priority — proven in SOTA/near-SOTA records (H100 only):**
+- QAT (STE int6) — fake quantize during training, eliminates quant gap. ~28% overhead but worth it.
+- MLP 3x expansion (hidden=1536) — largest single contributor. Needs int6+zstd to fit under 16MB.
+- SmearGate + BigramHash(10240) — cheap bigram context at embedding layer.
+- SWA (start_frac=0.4, every=50 steps) — smoother weights → better quantization.
+- Int5 for MLP + int6 for attention — mixed quantization saves ~1.86MB, funds 10th layer.
+- zstd-22 compression — ~5% better than zlib-9, critical for fitting larger models.
+- Orthogonal init — all CastedLinear weights via orthogonal_(gain=1.0), muP-scaled outputs.
+- 10 layers — standard in top records, funded by compression savings.
+- WD=0.04 for both Muon and AdamW — confirmed optimal. Our finding validated!
 
-**Medium priority:**
+**Medium priority — local-testable ideas:**
+- Int6 quantization (without QAT) — round int8 to nearest step=4 in post-quant. See 10L_MixedPrecision.
 - NTK-RoPE extrapolation at eval time (EVAL_SEQ_LEN > TRAIN_SEQ_LEN). See WarmdownQuantization record.
 - Late-K passthrough (last 2 layers' c_k.weight in fp16 instead of int8)
+- Weight snapping (round weights toward quantization grid before final export)
+- ~~Label smoothing~~ (exp 29 — 0.344 worse, prevents confident predictions which directly hurts BPB)
 - ~~WD on scalar params~~ (exp 24 — 0.008 BPB, kept)
 - ~~Embed LR ratio~~ (exp 25 — no change)
 
+**Lower priority — speculative:**
+- Depth recurrence (weight tying across layers — halves params for same effective depth)
+- Zlib-aware regularization (penalize weight patterns that compress poorly)
+- Ensemble eval (average logits from multiple checkpoints at eval time)
+
 **Already tried/invalidated (do not re-try):**
+- ~~Sliding window eval~~ (done, exp 21 — stride=512 locally, use stride=64 on H100)
+- ~~Overtone spectral embedding init~~ (exp 22 — 0.023 worse)
+- ~~Phase-transition residual mixing init~~ (exp 23 — 0.022 worse, needs long training)
 - ~~Extended warmdown~~: warmdown=1200 already puts entire training in warmdown on M2 Pro (LR_mul≈0.14). Reducing warmdown to 400 was worse. Current schedule is effectively "always decaying".
 - ~~LR above 0.30/0.30/0.35~~: LR=0.40 was worse (exp 14). 0.30 is optimal with current warmdown.
-- ~~Muon WD above 0.32~~: WD=0.64 increased quant penalty too much (exp 18). 0.32 is optimal.
-- ~~FP16 embed~~: Benefit too small (~0.0003) to measure in smoke tests. Save for H100 production.
-- ~~10 layers~~: Too slow on M2 Pro (158 vs 175 steps). Note for H100 production.
+- ~~Muon WD above 0.32~~: WD=0.64 increased quant penalty too much (exp 18). 0.32 is optimal locally.
+- ~~FP16 embed~~: Benefit too small (~0.0003) to measure in smoke tests. Standard in all top H100 records.
+- ~~10 layers~~: Too slow on M2 Pro (158 vs 175 steps). Standard on H100 — use there.
 - ~~Shorter momentum warmup~~: Higher momentum hurt in short-training regime (exp 12).
+- ~~Reducing model dim~~: M2-specific artifact (more steps in 10-min cap). Won't transfer to H100. Reverted to dim=512.
 
 ## Experiment log
 
@@ -287,7 +377,19 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 25: Higher embed LR ratio (2026-03-20 14:18)
 - **Result**: roundtrip_val_bpb=1.9194 (vs 1.9192), **DISCARDED — no change**
 
-**Current best**: val_bpb=1.9192, artifact=8.30MB.
-**Progress**: 2.4294 → 1.9192 = 0.510 BPB over 25 experiments.
+### Experiment 26: Reduce warmup steps 20→5 (2026-03-20 14:55)
+- **Result**: roundtrip_val_bpb=1.9158 (vs 1.9192), artifact=8.30MB, **KEEP — 0.003 BPB (borderline)**
 
+### Experiments 27-28: Reduce model dim (2026-03-20 15:30)
+- dim=448: 1.8649 (0.051 better), dim=384: 1.7850 (0.080 better) — massive smoke-test improvements.
+- **REVERTED**: These gains are M2-specific (more steps in 10-min cap). Won't transfer to H100 with 13K steps. Dim stays at 512.
+
+### Experiment 29: Label smoothing 0.1 (2026-03-20 18:05)
+- **Hypothesis**: Label smoothing prevents extreme logits, potentially improving quantization. May also improve generalization.
+- **Result**: roundtrip_val_bpb=2.2597 (vs 1.9158), artifact=8.18MB, **DISCARDED — 0.344 worse!**
+- Pre-quant val_bpb=2.2541, quant penalty=0.0056. Step 10 loss 7.24 (inflated by smoothing target).
+- **Key insight**: Label smoothing at 0.1 is far too aggressive for this task. It prevents confident predictions which directly hurts BPB. The smoothed loss targets essentially cap how much probability mass the model can put on the correct token. In a short-training regime where the model is already under-trained, further penalizing confidence is catastrophic.
+
+**Current best**: val_bpb=1.9158, artifact=8.30MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32 (all params), warmup=5.
+**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 29 experiments.
 

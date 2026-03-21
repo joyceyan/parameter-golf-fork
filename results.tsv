@@ -30,3 +30,4 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 18:05	2cf3e71	2.259682	8.18	35.0	1024	discard	label smoothing 0.1 (0.344 worse)
 2026-03-20 18:56	e02f76f	2.023655	6.35	34.0	1024	discard	Newton-Schulz 5->3 (0.108 worse)
 2026-03-20 19:32	5707921	2.094785	3.52	34.0	1024	discard	int6 post-quant step=4 (quant penalty 0.173)
+2026-03-20 20:08	bbe853d	1.918711	8.66	34.0	1024	discard	late-K passthrough (last 2 layers c_k fp16)

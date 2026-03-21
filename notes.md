@@ -221,7 +221,7 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 **Medium priority — local-testable quality ideas:**
 - ~~Int6 quantization (without QAT)~~ (exp 31 — quant penalty 0.173, needs QAT to work. H100 only.)
 - NTK-RoPE extrapolation at eval time (EVAL_SEQ_LEN > TRAIN_SEQ_LEN). See WarmdownQuantization record.
-- Late-K passthrough (last 2 layers' c_k.weight in fp16 instead of int8)
+- ~~Late-K passthrough~~ (exp 32 — 0.003 worse, int8 quant penalty already low enough)
 - Weight snapping (round weights toward quantization grid before final export)
 - ~~Label smoothing~~ (exp 29 — 0.344 worse, prevents confident predictions which directly hurts BPB)
 - ~~WD on scalar params~~ (exp 24 — 0.008 BPB, kept)
@@ -410,6 +410,12 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Pre-quant val_bpb=1.9214 (same as baseline). Quant penalty=0.1734 (vs 0.004 with int8).
 - **Key insight**: Int6 without QAT is catastrophically lossy. Compression is amazing (3.52MB vs 8.30MB, 58% reduction), proving int6 is the right approach for fitting more capacity. But the model MUST be trained to be robust to int6 quantization (STE/QAT). This is an H100-only change — QAT adds ~28% step time overhead, not worth it in 170-step smoke tests.
 
+### Experiment 32: Late-K passthrough (2026-03-20 20:08)
+- **Hypothesis**: Keep last 2 layers' c_k.weight in fp16 instead of int8. Key projections in final layers are most sensitive to quantization error.
+- **Result**: roundtrip_val_bpb=1.9187 (vs 1.9158), artifact=8.66MB, **DISCARDED — 0.003 worse**
+- Pre-quant=1.9138, quant penalty=0.0049 (vs ~0.004 baseline).
+- **Key insight**: Our int8 quant penalty is already very low (~0.004). Late-K passthrough added 0.36MB but didn't reduce the penalty enough. This technique is more valuable with int6 quantization (used in SOTA) where quant penalty is much higher. Not worth the artifact cost at pure int8.
+
 **Current best**: val_bpb=1.9158, artifact=8.30MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32 (all params), warmup=5.
-**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 31 experiments.
+**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 32 experiments.
 

@@ -219,7 +219,7 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - Fewer layers + wider MLP (e.g. 7L MLP_MULT=3 instead of 9L MLP_MULT=2). Fewer sequential passes, more capacity per layer. MLPs are parallel, depth is sequential. **Transfers to H100.**
 
 **Medium priority — local-testable quality ideas:**
-- Int6 quantization (without QAT) — round int8 to nearest step=4 in post-quant. See 10L_MixedPrecision.
+- ~~Int6 quantization (without QAT)~~ (exp 31 — quant penalty 0.173, needs QAT to work. H100 only.)
 - NTK-RoPE extrapolation at eval time (EVAL_SEQ_LEN > TRAIN_SEQ_LEN). See WarmdownQuantization record.
 - Late-K passthrough (last 2 layers' c_k.weight in fp16 instead of int8)
 - Weight snapping (round weights toward quantization grid before final export)
@@ -404,6 +404,12 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Step 10 loss 5.83 (vs 5.69). Step_avg=3481ms (vs ~3470ms — barely faster). 173 steps (vs 175).
 - **Key insight**: The reduced orthogonalization quality hurt training significantly without saving meaningful compute. Steps 2-3 showed unusual spikes (19.27, 14.96), suggesting instability from poor early orthogonalization. The Muon optimizer in MLX appears to need all 5 NS iterations — unlike PyTorch where 3 may suffice due to different numerics. Not worth pursuing.
 
+### Experiment 31: Int6 post-quantization step=4 (2026-03-20 19:32)
+- **Hypothesis**: Snap int8 values to nearest multiple of 4 (effectively int6) for better zlib compression. Used in SOTA records with QAT.
+- **Result**: roundtrip_val_bpb=2.0948 (vs 1.9158), artifact=3.52MB, **DISCARDED — 0.179 worse**
+- Pre-quant val_bpb=1.9214 (same as baseline). Quant penalty=0.1734 (vs 0.004 with int8).
+- **Key insight**: Int6 without QAT is catastrophically lossy. Compression is amazing (3.52MB vs 8.30MB, 58% reduction), proving int6 is the right approach for fitting more capacity. But the model MUST be trained to be robust to int6 quantization (STE/QAT). This is an H100-only change — QAT adds ~28% step time overhead, not worth it in 170-step smoke tests.
+
 **Current best**: val_bpb=1.9158, artifact=8.30MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32 (all params), warmup=5.
-**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 30 experiments.
+**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 31 experiments.
 

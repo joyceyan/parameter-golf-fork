@@ -93,7 +93,7 @@ class Hyperparameters:
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    muon_wd: float = float(os.environ.get("MUON_WD", 0.32))
+    muon_wd: float = float(os.environ.get("MUON_WD", 0.48))
 
     # Sliding window eval: stride < seq_len means each token scored with more context.
     # H100 production: EVAL_STRIDE=64. Smoke tests: 512 (faster, still beneficial).

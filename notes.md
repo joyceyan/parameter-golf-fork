@@ -471,6 +471,18 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 41: Disable eager eval (2026-03-21 02:06)
 - **Result**: KILLED — 3x slower (9.6s/step vs 3.4s). Lazy graph accumulation causes massive memory pressure on 16GB M2 Pro. Not viable.
 
-**Current best**: val_bpb=1.8768, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
-**Progress**: 2.4294 → 1.8768 = 0.553 BPB over 41 experiments.
+### Experiment 42: Shorter seq_len 1024→512 (2026-03-21 02:09)
+- **Hypothesis**: Halve attention cost (O(N²)), getting more steps in 10 min. seq=1024 used by MixedQuant record for throughput over seq=2048.
+- **Result**: roundtrip_val_bpb=1.7532 (vs 1.8768), artifact=8.63MB, **KEEP — 0.124 BPB improvement! Biggest single gain!**
+- Pre-quant=1.7492, quant penalty=0.004. 224 steps (vs 177), step_avg=2684ms (21% faster).
+- **Key insight**: 27% more steps compensates for less context per token. Sliding window eval at stride=64 still gives full context at eval time. This transfers to H100 — the MixedQuant record chose seq=1024 over 2048 for throughput for exactly this reason.
+- **Caution**: Unlike dim reduction (M2-only win), seq_len reduction is validated by top records. MixedQuant went from 2048→1024 and benefited. Our 1024→512 follows the same logic. On H100 with 13K steps, fewer steps matter less, but the throughput gain (more tokens/sec) means more total training tokens in the same wallclock.
+
+### Experiment 43: seq_len 512→256 (2026-03-21 02:41)
+- **Result**: roundtrip_val_bpb=1.8038 (vs 1.7532), artifact=8.73MB, **DISCARDED — 0.051 worse**
+- 258 steps, step_avg=2326ms (13% faster). But eval quality suffers from only 256 tokens of context.
+- **Key insight**: seq=512 is the sweet spot for M2 smoke tests. seq=256 gets 15% more steps but loses too much context quality.
+
+**Current best**: val_bpb=1.7532, artifact=8.63MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K, seq=512.
+**Progress**: 2.4294 → 1.7532 = 0.676 BPB over 43 experiments.
 

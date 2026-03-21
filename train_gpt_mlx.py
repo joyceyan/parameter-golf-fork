@@ -299,7 +299,7 @@ class RMSNormNoWeight(nn.Module):
 
 
 class CausalSelfAttention(nn.Module):
-    # - separate q/k/v projections
+    # - fused QKV projection (single matmul + split)
     # - RMSNorm on q and k before attention
     # - RoPE on q and k
     # - causal masked SDPA
@@ -322,9 +322,9 @@ class CausalSelfAttention(nn.Module):
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim)
-        self.c_k = CastedLinear(dim, kv_dim)
-        self.c_v = CastedLinear(dim, kv_dim)
+        self.q_dim = dim
+        self.kv_dim = kv_dim
+        self.c_qkv = CastedLinear(dim, dim + 2 * kv_dim)
         self.proj = CastedLinear(dim, dim)
         self.q_gain = mx.ones((num_heads,), dtype=mx.float32) * qk_gain_init
         self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
@@ -332,9 +332,10 @@ class CausalSelfAttention(nn.Module):
 
     def __call__(self, x: mx.array) -> mx.array:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        qkv = self.c_qkv(x)
+        q = qkv[:, :, :self.q_dim].reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        k = qkv[:, :, self.q_dim:self.q_dim + self.kv_dim].reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        v = qkv[:, :, self.q_dim + self.kv_dim:].reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
 
         q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
         k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
@@ -1057,7 +1058,7 @@ def main() -> None:
     log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
     log(
         f"dtypes tok_emb:{model.tok_emb.weight.dtype} "
-        f"linear_weight:{model.blocks[0].attn.c_q.weight.dtype} "
+        f"linear_weight:{model.blocks[0].attn.c_qkv.weight.dtype} "
         f"skip_weights:{model.skip_weights.dtype}"
     )
 

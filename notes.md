@@ -471,6 +471,18 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 41: Disable eager eval (2026-03-21 02:06)
 - **Result**: KILLED — 3x slower (9.6s/step vs 3.4s). Lazy graph accumulation causes massive memory pressure on 16GB M2 Pro. Not viable.
 
-**Current best**: val_bpb=1.8768, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
-**Progress**: 2.4294 → 1.8768 = 0.553 BPB over 41 experiments.
+### Experiment 42: Shorter seq_len 1024→512 (2026-03-21 02:09)
+- **Result**: roundtrip_val_bpb=1.7532 (vs 1.8768), artifact=8.63MB, **KEEP — 0.124 BPB improvement!**
+- 224 steps, step_avg=2684ms (21% faster). More steps + same training tokens/sec = huge win.
+- Transfers to H100 — MixedQuant record went 2048→1024 for same reason.
+
+### Experiment 43: seq_len 256 (2026-03-21 02:41)
+- **Result**: roundtrip_val_bpb=1.8038 (vs 1.7532), **DISCARDED — 0.051 worse**. Lost too much context.
+
+### Experiment 44: MLX-native grad clipping (2026-03-21 03:15)
+- **Result**: roundtrip_val_bpb=1.7539 (vs 1.7532), **DISCARDED — 0.001 worse (noise)**
+- 226 steps, step_avg=2656ms (~1% faster). Marginal speed gain, not worth the code change.
+
+**Current best**: val_bpb=1.7532, artifact=8.63MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
+**Progress**: 2.4294 → 1.7532 = 0.676 BPB over 44 experiments.
 

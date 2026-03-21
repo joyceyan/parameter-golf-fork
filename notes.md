@@ -211,7 +211,7 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - WD=0.04 for both Muon and AdamW — confirmed optimal. Our finding validated!
 
 **Medium priority — speed optimizations (local-testable, more steps = more learning):**
-- Reduce Newton-Schulz iterations 5→3 (`MUON_BACKEND_STEPS=3`). Muon doesn't need exact orthogonality — approximate is fine since gradients refresh each step. Saves ~40% of optimizer compute. **Transfers to H100.**
+- ~~Reduce Newton-Schulz iterations 5→3~~ (exp 30 — 0.108 worse, NS quality matters more than speed savings)
 - Grad clipping in MLX instead of CPU. Current `clip_grad_tree` converts every gradient to numpy (CPU roundtrip mid-step). Rewrite entirely in mx.array ops to stay on Metal GPU.
 - Larger microbatch chunks (`MLX_MAX_MICROBATCH_TOKENS=16384` or `MLX_EAGER_EVAL=0`). Currently 8K chunks = 8 forward/backward passes per microbatch. Fewer chunks = less overhead.
 - Fused QKV projection. Single `c_qkv(x)` matmul + split instead of 3 separate `c_q/c_k/c_v` projections. Better hardware utilization. **Transfers to H100.**
@@ -398,6 +398,12 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Pre-quant val_bpb=2.2541, quant penalty=0.0056. Step 10 loss 7.24 (inflated by smoothing target).
 - **Key insight**: Label smoothing at 0.1 is far too aggressive for this task. It prevents confident predictions which directly hurts BPB. The smoothed loss targets essentially cap how much probability mass the model can put on the correct token. In a short-training regime where the model is already under-trained, further penalizing confidence is catastrophic.
 
+### Experiment 30: Newton-Schulz iterations 5→3 (2026-03-20 18:56)
+- **Hypothesis**: Fewer NS iterations = faster Muon optimizer step = more training steps in 10-min cap. Approximate orthogonality should be sufficient since gradients refresh each step.
+- **Result**: roundtrip_val_bpb=2.0237 (vs 1.9158), artifact=6.35MB, **DISCARDED — 0.108 worse!**
+- Step 10 loss 5.83 (vs 5.69). Step_avg=3481ms (vs ~3470ms — barely faster). 173 steps (vs 175).
+- **Key insight**: The reduced orthogonalization quality hurt training significantly without saving meaningful compute. Steps 2-3 showed unusual spikes (19.27, 14.96), suggesting instability from poor early orthogonalization. The Muon optimizer in MLX appears to need all 5 NS iterations — unlike PyTorch where 3 may suffice due to different numerics. Not worth pursuing.
+
 **Current best**: val_bpb=1.9158, artifact=8.30MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32 (all params), warmup=5.
-**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 29 experiments.
+**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 30 experiments.
 

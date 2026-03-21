@@ -243,6 +243,7 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - ~~10 layers~~: Too slow on M2 Pro (158 vs 175 steps). Standard on H100 — use there.
 - ~~Shorter momentum warmup~~: Higher momentum hurt in short-training regime (exp 12).
 - ~~Reducing model dim~~: M2-specific artifact (more steps in 10-min cap). Won't transfer to H100. Reverted to dim=512.
+- ~~Warmdown 3000~~: Cuts effective LR_mul from 0.14 to 0.057 on M2 (exp 38, 0.108 worse). Designed for H100's 13K steps.
 
 ## Experiment log
 
@@ -448,4 +449,10 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 
 **Current best**: val_bpb=1.9142, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32 (all params), warmup=5, momentum=0.99.
 **Progress**: 2.4294 → 1.9142 = 0.515 BPB over 37 experiments.
+
+### Experiment 38: Warmdown 1200→3000 (2026-03-21 00:07)
+- **Hypothesis**: SOTA records use warmdown=3000. More gradual LR decay should help convergence.
+- **Result**: roundtrip_val_bpb=2.0220 (vs 1.9142), artifact=7.72MB, **DISCARDED — 0.108 worse!**
+- Pre-quant val_bpb=2.0138. 175 steps, step_avg=3439ms.
+- **Key insight**: warmdown=3000 cuts effective LR_mul from 0.14 (warmdown=1200) to 0.057 (warmdown=3000), a ~60% reduction. The model barely learns. This setting is designed for H100 with 13K steps where LR_mul = (13000*43/1000) / 3000 ≈ 0.19 — much healthier. On M2 with 170 steps, even warmdown=1200 puts entire training in warmdown. Going higher makes it strictly worse. Add to "Already tried" list.
 

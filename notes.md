@@ -238,8 +238,7 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - ~~Phase-transition residual mixing init~~ (exp 23 — 0.022 worse, needs long training)
 - ~~Extended warmdown~~: warmdown=1200 already puts entire training in warmdown on M2 Pro (LR_mul≈0.14). Reducing warmdown to 400 was worse. Current schedule is effectively "always decaying".
 - ~~LR above 0.30/0.30/0.35~~: LR=0.40 was worse (exp 14). 0.30 is optimal with current warmdown.
-- ~~Muon WD above 0.32~~: WD=0.64 increased quant penalty too much (exp 18). WD=0.48 hurt quality (exp 50). 0.32 is optimal locally.
-- ~~Muon WD below 0.32~~: WD=0.24 was 0.109 worse with 9.20MB artifact (exp 49). 0.32 is optimal from both sides.
+- ~~Muon WD above 0.32~~: WD=0.64 increased quant penalty too much (exp 18). 0.32 is optimal locally.
 - ~~FP16 embed~~: Benefit too small (~0.0003) to measure in smoke tests. Standard in all top H100 records.
 - ~~10 layers~~: Too slow on M2 Pro (158 vs 175 steps). Standard on H100 — use there.
 - ~~Shorter momentum warmup~~: Higher momentum hurt in short-training regime (exp 12).
@@ -479,15 +478,8 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 46: Higher LR 0.40/0.40/0.50 — DISCARD (0.029 worse)
 ### Experiment 47: Warmdown 800 — DISCARD (0.084 worse, too aggressive)
 
-### Experiment 48: Sliding window eval stride=256 — **KEEP — 0.035 BPB** (eval-only, 22min eval)
-### Experiment 49: WD 0.32→0.24 — DISCARD (0.109 worse, 9.20MB artifact)
+**Current best**: val_bpb=1.7532, artifact=8.63MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
+**Progress**: 2.4294 → 1.7532 = 0.676 BPB over 47 experiments.
 
-### Experiment 50: WD 0.32→0.48 (2026-03-21 08:02)
-- **Hypothesis**: Higher WD improved compression through the sweep (0.02→0.32). Push further to 0.48.
-- **Result**: roundtrip_val_bpb=1.7540 (vs 1.7187), artifact=7.62MB, **DISCARDED — 0.035 worse**
-- Pre-quant val_bpb=1.7841 (first eval). 222 steps, step_avg=2714ms.
-- **Key insight**: WD=0.48 shrank artifact further (7.62 vs 8.62MB) but hurt quality more than the compression gain. WD=0.32 remains optimal — confirmed from both sides (0.24 and 0.48 both worse).
-
-**Current best**: val_bpb=1.7187, artifact=8.62MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K, eval_stride=256.
-**Progress**: 2.4294 → 1.7187 = 0.711 BPB over 50 experiments.
+**Strategy note**: Last 4 HP tweaks were all discards (~0.029 worse). LR and warmdown are well-tuned. Need to change strategy: try architectural changes or eval-time improvements. Remaining ideas: weight snapping, NTK-RoPE, depth recurrence, train_batch_tokens increase.
 

@@ -99,9 +99,6 @@ class Hyperparameters:
     # H100 production: EVAL_STRIDE=64. Smoke tests: 512 (faster, still beneficial).
     eval_stride: int = int(os.environ.get("EVAL_STRIDE", 256))
     eval_batch_seqs: int = int(os.environ.get("EVAL_BATCH_SEQS", 32))
-    # NTK-RoPE eval extrapolation: eval at longer seq than trained.
-    # 0 = use train_seq_len. >0 = eval at this length with NTK-scaled RoPE base.
-    eval_seq_len: int = int(os.environ.get("EVAL_SEQ_LEN", 1024))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
@@ -849,10 +846,9 @@ def eval_val_sliding(
     has_leading_space_lut: np.ndarray,
     is_boundary_token_lut: np.ndarray,
     log_fn: Callable[[str], None] | None = None,
-    seq_len_override: int = 0,
 ) -> tuple[float, float]:
     """Sliding window eval: each token scored with near-maximum context."""
-    seq_len = seq_len_override if seq_len_override > 0 else args.train_seq_len
+    seq_len = args.train_seq_len
     stride = args.eval_stride
     batch_seqs = args.eval_batch_seqs
     total_tokens = val_tokens.size - 1
@@ -1194,18 +1190,8 @@ def main() -> None:
     quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
     model.update(tree_unflatten(list(quant_flat.items())))
     q_t0 = time.perf_counter()
-    # NTK-RoPE eval extrapolation: scale RoPE base for longer eval sequences
-    eval_sl = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
-    orig_rope_base = args.rope_base
-    if eval_sl > args.train_seq_len:
-        head_dim = args.model_dim // args.num_heads
-        scale_factor = eval_sl / args.train_seq_len
-        ntk_base = args.rope_base * (scale_factor ** (head_dim / (head_dim - 2)))
-        log(f"ntk_rope_eval: train_seq={args.train_seq_len} eval_seq={eval_sl} scale={scale_factor:.1f} base:{args.rope_base:.0f}->{ntk_base:.0f}")
-        for block in model.blocks:
-            block.attn.rope = nn.RoPE(head_dim, traditional=False, base=ntk_base)
-    if args.eval_stride > 0 and args.eval_stride < eval_sl:
-        log(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs} seq_len:{eval_sl}")
+    if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
+        log(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
         q_val_loss, q_val_bpb = eval_val_sliding(
             args,
             model,
@@ -1214,7 +1200,6 @@ def main() -> None:
             has_leading_space_lut,
             is_boundary_token_lut,
             log_fn=log,
-            seq_len_override=eval_sl,
         )
     else:
         log("final_eval_mode:standard")

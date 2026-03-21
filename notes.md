@@ -428,6 +428,12 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Pre-quant=1.9133 (slightly better!), quant penalty=0.005 (slightly worse). Step 10 loss 5.64 (vs 5.69 baseline).
 - **Key insight**: Orthogonal init improved pre-quant quality marginally but slightly increased artifact size (8.42 vs 8.30) and quant penalty. The init quality improvement is too small for 170 steps. Promising for H100 with 13K steps where the convergence acceleration compounds. Keep in H100-only queue.
 
-**Current best**: val_bpb=1.9158, artifact=8.30MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32 (all params), warmup=5.
-**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 34 experiments.
+### Experiment 35: Tighter grad clip 1.0→0.3 (2026-03-20 21:55)
+- **Hypothesis**: SOTA records use grad_clip=0.3. Tighter clipping may produce smoother weight distributions.
+- **Result**: roundtrip_val_bpb=1.9149 (vs 1.9158), artifact=8.29MB, **KEEP — 0.001 BPB (borderline)**
+- Pre-quant=1.9105 (0.005 better), quant penalty=0.0044. Step 10 loss 5.73 (slightly slower early learning as expected with tighter clip).
+- **Note**: Borderline improvement but aligns with SOTA practice. Pre-quant improvement is more convincing than roundtrip delta.
+
+**Current best**: val_bpb=1.9149, artifact=8.29MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32 (all params), warmup=5.
+**Progress**: 2.4294 → 1.9149 = 0.515 BPB over 35 experiments.
 

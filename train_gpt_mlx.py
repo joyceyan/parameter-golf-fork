@@ -95,10 +95,6 @@ class Hyperparameters:
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
     muon_wd: float = float(os.environ.get("MUON_WD", 0.32))
 
-    # Post-quantization int6 snapping: snap int8 values to multiples of step for better
-    # zlib compression (effectively int6 in int8 containers). 0 = disabled (pure int8).
-    int6_step: int = int(os.environ.get("INT6_STEP", 4))
-
     # Sliding window eval: stride < seq_len means each token scored with more context.
     # H100 production: EVAL_STRIDE=64. Smoke tests: 512 (faster, still beneficial).
     eval_stride: int = int(os.environ.get("EVAL_STRIDE", 0))
@@ -618,7 +614,7 @@ def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
     return np.ascontiguousarray(q), scale
 
 
-def quantize_state_dict_int8(flat_state: dict[str, mx.array], int6_step: int = 0) -> tuple[dict[str, object], dict[str, int]]:
+def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
     quantized: dict[str, np.ndarray] = {}
     scales: dict[str, np.ndarray] = {}
     dtypes: dict[str, str] = {}
@@ -649,11 +645,6 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array], int6_step: int = 0
 
         stats["num_float_tensors"] += 1
         q, s = quantize_float_array(arr)
-        # Int6 snapping: round int8 values to nearest multiple of step.
-        # This gives ~64 effective levels (int6) stored in int8 containers.
-        # zlib compresses the zero high bits much better.
-        if int6_step > 1:
-            q = np.clip(np.round(q.astype(np.float32) / int6_step) * int6_step, -127, 127).astype(np.int8)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -1180,7 +1171,7 @@ def main() -> None:
     mx.savez(str(out_path), **flat_state)
     log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(flat_state, int6_step=args.int6_step)
+    quant_obj, quant_stats = quantize_state_dict_int8(flat_state)
     quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_serialized_bytes = len(quant_raw)

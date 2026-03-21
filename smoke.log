@@ -1,48 +1,216 @@
-logs/6af29b42-19e7-4ccb-b2c4-6ce12e528346.txt
-run_id:6af29b42-19e7-4ccb-b2c4-6ce12e528346
+logs/f3ffa88d-62a7-4575-8c89-0ef6a07eb11a.txt
+run_id:f3ffa88d-62a7-4575-8c89-0ef6a07eb11a
 mlx_version:0.31.1
 train_loader:shards pattern=./data/datasets/fineweb10B_sp1024_smoke/fineweb_train_*.bin
 val_loader:shards pattern=./data/datasets/fineweb10B_sp1024_smoke/fineweb_val_*.bin tokens:62021632
 train_loader:dataset:fineweb10B_sp1024_smoke train_shards:1
 tokenizer_path:./data/tokenizers/fineweb_1024_bpe.model
 model_params:17059912 vocab_size:1024 layers:9 dim:512 heads:8 kv_heads:4 seq_len:1024 tie_embeddings:True
-iterations:20000 train_batch_tokens:65536 grad_accum_steps:1 microbatch_tokens:65536 microbatch_batch_size:64 val_batch_size:524288 warmup_steps:5 max_wallclock_seconds:600.000
+iterations:20000 train_batch_tokens:65536 grad_accum_steps:1 microbatch_tokens:65536 microbatch_batch_size:64 val_batch_size:524288 warmup_steps:20 max_wallclock_seconds:600.000
 mlx_max_microbatch_tokens:8192
-optimizer:muon+adam muon_matrix_params:54 scalar_params:37 embed_lr:0.35 matrix_lr:0.3 scalar_lr:0.3 muon_momentum:0.95 muon_steps:3
+optimizer:muon+adam muon_matrix_params:54 scalar_params:37 embed_lr:0.35 matrix_lr:0.3 scalar_lr:0.3 muon_momentum:0.95 muon_steps:5
 val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
 compute_dtype:mlx.core.bfloat16 compile:True
 dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
-warmup_step:1/5
-warmup_step:2/5
-warmup_step:3/5
-warmup_step:4/5
-warmup_step:5/5
-step:1/20000 train_loss:6.9365 train_time:4049ms step_avg:4048.72ms tok_s:16187
-step:2/20000 train_loss:19.2692 train_time:8448ms step_avg:4224.11ms tok_s:14902
-step:3/20000 train_loss:14.9611 train_time:11945ms step_avg:3981.70ms tok_s:18744
-step:4/20000 train_loss:11.7412 train_time:15480ms step_avg:3869.98ms tok_s:18542
-step:5/20000 train_loss:9.3946 train_time:18962ms step_avg:3792.44ms tok_s:18822
-step:6/20000 train_loss:7.9087 train_time:22464ms step_avg:3744.06ms tok_s:18715
-step:7/20000 train_loss:6.9579 train_time:25936ms step_avg:3705.08ms tok_s:18882
-step:8/20000 train_loss:6.3462 train_time:29393ms step_avg:3674.14ms tok_s:18957
-step:9/20000 train_loss:6.0441 train_time:32865ms step_avg:3651.65ms tok_s:18878
-step:10/20000 train_loss:5.8347 train_time:36332ms step_avg:3633.18ms tok_s:18906
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9365 train_time:4756ms step_avg:4756.22ms tok_s:13779
+step:2/20000 train_loss:19.2849 train_time:8414ms step_avg:4207.11ms tok_s:17919
+step:3/20000 train_loss:15.4088 train_time:11917ms step_avg:3972.22ms tok_s:18713
+step:4/20000 train_loss:11.9504 train_time:15475ms step_avg:3868.86ms tok_s:18417
+step:5/20000 train_loss:9.4551 train_time:18953ms step_avg:3790.64ms tok_s:18846
+step:6/20000 train_loss:7.9043 train_time:22436ms step_avg:3739.34ms tok_s:18818
+step:7/20000 train_loss:6.9310 train_time:25916ms step_avg:3702.25ms tok_s:18835
+step:8/20000 train_loss:6.3235 train_time:29377ms step_avg:3672.18ms tok_s:18934
+step:9/20000 train_loss:6.0071 train_time:32847ms step_avg:3649.62ms tok_s:18893
+step:10/20000 train_loss:5.7792 train_time:36314ms step_avg:3631.36ms tok_s:18904
 val_progress:1/119
 val_progress:25/119
 val_progress:50/119
 val_progress:75/119
 val_progress:100/119
 val_progress:119/119
-step:173/20000 val_loss:3.4099 val_bpb:2.0195 train_time:602234ms step_avg:3481.12ms
-stopping_early: wallclock_cap train_time:602234ms step:173/20000
-saved_model:logs/6af29b42-19e7-4ccb-b2c4-6ce12e528346_mlx_model.npz bytes:67212188
-serialized_model_int8_zlib:6347542 bytes (payload:17178912 raw_pickle:17188361 payload_ratio:3.91x)
-final_eval_mode:standard
-val_progress:1/119
-val_progress:25/119
-val_progress:50/119
-val_progress:75/119
-val_progress:100/119
-val_progress:119/119
-final_int8_zlib_roundtrip val_loss:3.4169 val_bpb:2.0237 eval_time:687731ms
-final_int8_zlib_roundtrip_exact val_loss:3.41685733 val_bpb:2.02365537
+step:170/20000 val_loss:3.2672 val_bpb:1.9350 train_time:600588ms step_avg:3532.87ms
+stopping_early: wallclock_cap train_time:600588ms step:170/20000
+saved_model:logs/f3ffa88d-62a7-4575-8c89-0ef6a07eb11a_mlx_model.npz bytes:67212188
+serialized_model_int8_zlib:8446420 bytes (payload:17178912 raw_pickle:17188361 payload_ratio:3.91x)
+final_eval_mode:sliding_window stride:64 batch_seqs:16
+val_sliding_progress:16/969088
+val_sliding_progress:160/969088
+val_sliding_progress:320/969088
+val_sliding_progress:480/969088
+val_sliding_progress:640/969088
+val_sliding_progress:800/969088
+val_sliding_progress:960/969088
+val_sliding_progress:1120/969088
+val_sliding_progress:1280/969088
+val_sliding_progress:1440/969088
+val_sliding_progress:1600/969088
+val_sliding_progress:1760/969088
+val_sliding_progress:1920/969088
+val_sliding_progress:2080/969088
+val_sliding_progress:2240/969088
+val_sliding_progress:2400/969088
+val_sliding_progress:2560/969088
+val_sliding_progress:2720/969088
+val_sliding_progress:2880/969088
+val_sliding_progress:3040/969088
+val_sliding_progress:3200/969088
+val_sliding_progress:3360/969088
+val_sliding_progress:3520/969088
+val_sliding_progress:3680/969088
+val_sliding_progress:3840/969088
+val_sliding_progress:4000/969088
+val_sliding_progress:4160/969088
+val_sliding_progress:4320/969088
+val_sliding_progress:4480/969088
+val_sliding_progress:4640/969088
+val_sliding_progress:4800/969088
+val_sliding_progress:4960/969088
+val_sliding_progress:5120/969088
+val_sliding_progress:5280/969088
+val_sliding_progress:5440/969088
+val_sliding_progress:5600/969088
+val_sliding_progress:5760/969088
+val_sliding_progress:5920/969088
+val_sliding_progress:6080/969088
+val_sliding_progress:6240/969088
+val_sliding_progress:6400/969088
+val_sliding_progress:6560/969088
+val_sliding_progress:6720/969088
+val_sliding_progress:6880/969088
+val_sliding_progress:7040/969088
+val_sliding_progress:7200/969088
+val_sliding_progress:7360/969088
+val_sliding_progress:7520/969088
+val_sliding_progress:7680/969088
+val_sliding_progress:7840/969088
+val_sliding_progress:8000/969088
+val_sliding_progress:8160/969088
+val_sliding_progress:8320/969088
+val_sliding_progress:8480/969088
+val_sliding_progress:8640/969088
+val_sliding_progress:8800/969088
+val_sliding_progress:8960/969088
+val_sliding_progress:9120/969088
+val_sliding_progress:9280/969088
+val_sliding_progress:9440/969088
+val_sliding_progress:9600/969088
+val_sliding_progress:9760/969088
+val_sliding_progress:9920/969088
+val_sliding_progress:10080/969088
+val_sliding_progress:10240/969088
+val_sliding_progress:10400/969088
+val_sliding_progress:10560/969088
+val_sliding_progress:10720/969088
+val_sliding_progress:10880/969088
+val_sliding_progress:11040/969088
+val_sliding_progress:11200/969088
+val_sliding_progress:11360/969088
+val_sliding_progress:11520/969088
+val_sliding_progress:11680/969088
+val_sliding_progress:11840/969088
+val_sliding_progress:12000/969088
+val_sliding_progress:12160/969088
+val_sliding_progress:12320/969088
+val_sliding_progress:12480/969088
+val_sliding_progress:12640/969088
+val_sliding_progress:12800/969088
+val_sliding_progress:12960/969088
+val_sliding_progress:13120/969088
+val_sliding_progress:13280/969088
+val_sliding_progress:13440/969088
+val_sliding_progress:13600/969088
+val_sliding_progress:13760/969088
+val_sliding_progress:13920/969088
+val_sliding_progress:14080/969088
+val_sliding_progress:14240/969088
+val_sliding_progress:14400/969088
+val_sliding_progress:14560/969088
+val_sliding_progress:14720/969088
+val_sliding_progress:14880/969088
+val_sliding_progress:15040/969088
+val_sliding_progress:15200/969088
+val_sliding_progress:15360/969088
+val_sliding_progress:15520/969088
+val_sliding_progress:15680/969088
+val_sliding_progress:15840/969088
+val_sliding_progress:16000/969088
+val_sliding_progress:16160/969088
+val_sliding_progress:16320/969088
+val_sliding_progress:16480/969088
+val_sliding_progress:16640/969088
+val_sliding_progress:16800/969088
+val_sliding_progress:16960/969088
+val_sliding_progress:17120/969088
+val_sliding_progress:17280/969088
+val_sliding_progress:17440/969088
+val_sliding_progress:17600/969088
+val_sliding_progress:17760/969088
+val_sliding_progress:17920/969088
+val_sliding_progress:18080/969088
+val_sliding_progress:18240/969088
+val_sliding_progress:18400/969088
+val_sliding_progress:18560/969088
+val_sliding_progress:18720/969088
+val_sliding_progress:18880/969088
+val_sliding_progress:19040/969088
+val_sliding_progress:19200/969088
+val_sliding_progress:19360/969088
+val_sliding_progress:19520/969088
+val_sliding_progress:19680/969088
+val_sliding_progress:19840/969088
+val_sliding_progress:20000/969088
+val_sliding_progress:20160/969088
+val_sliding_progress:20320/969088
+val_sliding_progress:20480/969088
+val_sliding_progress:20640/969088
+val_sliding_progress:20800/969088
+val_sliding_progress:20960/969088
+val_sliding_progress:21120/969088
+val_sliding_progress:21280/969088
+val_sliding_progress:21440/969088
+val_sliding_progress:21600/969088
+val_sliding_progress:21760/969088
+val_sliding_progress:21920/969088
+val_sliding_progress:22080/969088
+val_sliding_progress:22240/969088
+val_sliding_progress:22400/969088
+val_sliding_progress:22560/969088
+val_sliding_progress:22720/969088
+val_sliding_progress:22880/969088
+val_sliding_progress:23040/969088
+val_sliding_progress:23200/969088
+val_sliding_progress:23360/969088
+val_sliding_progress:23520/969088
+val_sliding_progress:23680/969088
+val_sliding_progress:23840/969088
+val_sliding_progress:24000/969088
+val_sliding_progress:24160/969088
+val_sliding_progress:24320/969088
+val_sliding_progress:24480/969088
+val_sliding_progress:24640/969088
+val_sliding_progress:24800/969088
+val_sliding_progress:24960/969088
+val_sliding_progress:25120/969088
+val_sliding_progress:25280/969088
+val_sliding_progress:25440/969088
+val_sliding_progress:25600/969088

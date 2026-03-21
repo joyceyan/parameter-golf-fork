@@ -422,6 +422,12 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Pre-quant=1.9683, step_avg=3500ms (not faster than 3478ms). 172 steps (fewer).
 - **Key insight**: Fused QKV hurts because Muon orthogonalizes each 2D matrix independently. Separate Q/K/V allows the optimizer to learn each projection in its own orthogonal subspace. A single 512x1024 matrix constrains the learning dynamics. This is a known interaction with Muon — don't fuse projections that Muon optimizes separately.
 
+### Experiment 34: Orthogonal init (2026-03-20 21:19)
+- **Hypothesis**: Initialize CastedLinear weights with QR-orthogonal matrices. Muon orthogonalizes gradients, so starting from orthogonal weights means productive updates from step 1. Used in SOTA records.
+- **Result**: roundtrip_val_bpb=1.9183 (vs 1.9158), artifact=8.42MB, **DISCARDED — 0.003 worse (within noise)**
+- Pre-quant=1.9133 (slightly better!), quant penalty=0.005 (slightly worse). Step 10 loss 5.64 (vs 5.69 baseline).
+- **Key insight**: Orthogonal init improved pre-quant quality marginally but slightly increased artifact size (8.42 vs 8.30) and quant penalty. The init quality improvement is too small for 170 steps. Promising for H100 with 13K steps where the convergence acceleration compounds. Keep in H100-only queue.
+
 **Current best**: val_bpb=1.9158, artifact=8.30MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32 (all params), warmup=5.
-**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 33 experiments.
+**Progress**: 2.4294 → 1.9158 = 0.514 BPB over 34 experiments.
 

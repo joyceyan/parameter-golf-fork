@@ -46,8 +46,3 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-21 03:47	55c6271	1.782437	8.28	32.0	1024	discard	lower LR 0.20/0.20/0.25 (0.029 worse)
 2026-03-21 04:19	9715271	1.782069	8.78	32.0	1024	discard	higher LR 0.40/0.40/0.50 (0.029 worse)
 2026-03-21 04:51	b5400a6	1.837271	8.60	32.0	1024	discard	warmdown 800 (0.084 worse, too aggressive)
-2026-03-21 05:25	2609e95	1.718706	8.62	55.0	1024	keep	sliding window eval stride=256 (0.035 better, eval-only)
-2026-03-21 06:57	f26a083	1.827255	9.20	55.0	1024	discard	WD 0.32->0.24 (0.109 worse, larger artifact)
-2026-03-21 08:02	3c49fdd	1.753998	7.62	55.0	1024	discard	WD 0.32->0.48 (0.035 worse, smaller artifact)
-2026-03-21 08:48	66b4be4	1.778245	8.64	82.0	1024	discard	NTK-RoPE eval extrapolation seq=1024 (0.060 worse)
-2026-03-21 10:02	0fd3615	2.143158	5.83	55.0	1024	discard	cosine LR schedule (0.424 worse, LR too high early)

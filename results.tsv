@@ -37,3 +37,6 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 22:30	e9b87cb	1.945570	10.10	38.0	1024	discard	MLP 3x expansion (fewer steps on M2)
 2026-03-20 23:09	2eb51d5	1.914187	8.35	34.0	1024	keep	Muon momentum 0.95->0.99
 2026-03-21 00:07	e5d3af8	2.021985	7.72	35.0	1024	discard	warmdown 1200->3000 (0.108 worse, too aggressive for M2)
+2026-03-21 00:46	8c92185	1.876820	8.35	35.0	1024	keep	larger microbatch 8K->16K tokens (0.037 better)
+2026-03-21 01:28	48140de	1.888455	8.38	35.0	1024	discard	microbatch 32K (0.012 worse than 16K)
+2026-03-21 02:06	3421ef4	-	-	-	1024	discard	disable eager eval (3x slower on 16GB, killed)

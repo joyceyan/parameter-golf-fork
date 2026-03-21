@@ -244,6 +244,8 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - ~~Shorter momentum warmup~~: Higher momentum hurt in short-training regime (exp 12).
 - ~~Reducing model dim~~: M2-specific artifact (more steps in 10-min cap). Won't transfer to H100. Reverted to dim=512.
 - ~~Warmdown 3000~~: Cuts effective LR_mul from 0.14 to 0.057 on M2 (exp 38, 0.108 worse). Designed for H100's 13K steps.
+- ~~Disable eager eval~~: 3x slower on 16GB M2 Pro (exp 41). Need 32GB+ unified memory.
+- ~~Microbatch 32K~~: Faster step time but slightly worse quality than 16K (exp 40). 16K is optimal.
 
 ## Experiment log
 
@@ -455,4 +457,20 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - **Result**: roundtrip_val_bpb=2.0220 (vs 1.9142), artifact=7.72MB, **DISCARDED — 0.108 worse!**
 - Pre-quant val_bpb=2.0138. 175 steps, step_avg=3439ms.
 - **Key insight**: warmdown=3000 cuts effective LR_mul from 0.14 (warmdown=1200) to 0.057 (warmdown=3000), a ~60% reduction. The model barely learns. This setting is designed for H100 with 13K steps where LR_mul = (13000*43/1000) / 3000 ≈ 0.19 — much healthier. On M2 with 170 steps, even warmdown=1200 puts entire training in warmdown. Going higher makes it strictly worse. Add to "Already tried" list.
+
+### Experiment 39: Larger microbatch chunks 8K→16K (2026-03-21 00:46)
+- **Hypothesis**: Fewer sub-batches per step (4 vs 8) means less kernel launch overhead, potentially faster training.
+- **Result**: roundtrip_val_bpb=1.8768 (vs 1.9142), artifact=8.35MB, **KEEP — 0.037 BPB improvement!**
+- Pre-quant=1.8715, quant penalty=0.005. 177 steps (vs 174), step_avg=3404ms (vs 3459ms — 1.6% faster).
+- **Key insight**: Larger sub-batches allow MLX to build more efficient compute graphs. 3 extra steps + better graph optimization = significant quality gain. 16K is the sweet spot.
+
+### Experiment 40: Microbatch 32K tokens (2026-03-21 01:28)
+- **Result**: roundtrip_val_bpb=1.8885 (vs 1.8768), artifact=8.38MB, **DISCARDED — 0.012 worse than 16K**
+- 179 steps, step_avg=3366ms. Fastest config but slightly worse quality. 16K is optimal.
+
+### Experiment 41: Disable eager eval (2026-03-21 02:06)
+- **Result**: KILLED — 3x slower (9.6s/step vs 3.4s). Lazy graph accumulation causes massive memory pressure on 16GB M2 Pro. Not viable.
+
+**Current best**: val_bpb=1.8768, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
+**Progress**: 2.4294 → 1.8768 = 0.553 BPB over 41 experiments.
 

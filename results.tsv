@@ -24,3 +24,6 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 13:05	fd75774	1.948436	8.30	35.0	1024	discard	phase-transition residual mixing init
 2026-03-20 13:43	9ddff0b	1.919193	8.30	34.0	1024	keep	WD on scalar params
 2026-03-20 14:18	036ba0f	1.919436	8.28	35.0	1024	discard	higher embed LR ratio (0.50:0.30)
+2026-03-20 14:55	40fa7b6	1.915771	8.30	35.0	1024	keep	reduce warmup steps 20->5
+2026-03-20 15:30	21b6018	1.864865	6.66	49.0	1024	discard	reduce model dim 512->448 (M2-only win reverted)
+2026-03-20 16:20	a2eae68	1.784953	5.12	44.0	1024	discard	reduce model dim 448->384 (M2-only win reverted)

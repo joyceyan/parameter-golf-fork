@@ -145,6 +145,7 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - ~~FP16 embed~~: Benefit too small (~0.0003) to measure in smoke tests. Save for H100 production.
 - ~~10 layers~~: Too slow on M2 Pro (158 vs 175 steps). Note for H100 production.
 - ~~Shorter momentum warmup~~: Higher momentum hurt in short-training regime (exp 12).
+- ~~Reducing model dim~~: Dim=448 and dim=384 both improved smoke-test val_bpb dramatically (exps 27-28), but this is purely an M2 Pro artifact — smaller models train faster with more steps in the 10-min cap. On H100 with 13K steps, dim=512 (or larger) is correct. **Do not waste time optimizing model dim for M2 Pro — it won't transfer to H100.** Reverted to dim=512.
 
 ## Experiment log
 
@@ -287,7 +288,14 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 25: Higher embed LR ratio (2026-03-20 14:18)
 - **Result**: roundtrip_val_bpb=1.9194 (vs 1.9192), **DISCARDED — no change**
 
-**Current best**: val_bpb=1.9192, artifact=8.30MB.
-**Progress**: 2.4294 → 1.9192 = 0.510 BPB over 25 experiments.
+### Experiment 26: Reduce warmup steps 20→5 (2026-03-20 14:55)
+- **Result**: roundtrip_val_bpb=1.9158 (vs 1.9192), artifact=8.30MB, **KEEP — 0.003 BPB (borderline)**
+
+### Experiments 27-28: Reduce model dim (2026-03-20 15:30)
+- dim=448: 1.8649 (0.051 better), dim=384: 1.7850 (0.080 better) — massive smoke-test improvements.
+- **REVERTED**: These gains are M2-specific (more steps in 10-min cap). Won't transfer to H100 with 13K steps. Dim stays at 512.
+
+**Current best**: val_bpb=1.9158, artifact=8.30MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=1.0, muon_wd=0.32 (all params), warmup=5.
+**Progress**: 2.4294 → 1.9158 = 0.514 BPP over 28 experiments.
 
 

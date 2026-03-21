@@ -40,8 +40,3 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-21 00:46	8c92185	1.876820	8.35	35.0	1024	keep	larger microbatch 8K->16K tokens (0.037 better)
 2026-03-21 01:28	48140de	1.888455	8.38	35.0	1024	discard	microbatch 32K (0.012 worse than 16K)
 2026-03-21 02:06	3421ef4	-	-	-	1024	discard	disable eager eval (3x slower on 16GB, killed)
-2026-03-21 02:09	d304c0d	1.753172	8.63	32.0	1024	keep	seq_len 1024->512 (0.124 better, 224 steps)
-2026-03-21 02:41	d22a195	1.803759	8.73	30.0	1024	discard	seq_len 256 (0.051 worse than 512, lost context)
-2026-03-21 03:15	fa4cb62	1.753888	8.56	32.0	1024	discard	MLX-native grad clip (0.001 worse, within noise)
-2026-03-21 03:47	55c6271	1.782437	8.28	32.0	1024	discard	lower LR 0.20/0.20/0.25 (0.029 worse)
-2026-03-21 04:19	9715271	1.782069	8.78	32.0	1024	discard	higher LR 0.40/0.40/0.50 (0.029 worse)

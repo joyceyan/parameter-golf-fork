@@ -95,6 +95,10 @@ class Hyperparameters:
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
     muon_wd: float = float(os.environ.get("MUON_WD", 0.32))
 
+    # Late-K passthrough: keep last N layers' c_k.weight in fp16 instead of int8.
+    # Reduces quantization error on the most important key projections.
+    late_k_layers: int = int(os.environ.get("LATE_K_LAYERS", 2))
+
     # Sliding window eval: stride < seq_len means each token scored with more context.
     # H100 production: EVAL_STRIDE=64. Smoke tests: 512 (faster, still beneficial).
     eval_stride: int = int(os.environ.get("EVAL_STRIDE", 0))
@@ -614,7 +618,13 @@ def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
     return np.ascontiguousarray(q), scale
 
 
-def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
+def quantize_state_dict_int8(flat_state: dict[str, mx.array], late_k_layers: int = 0, num_layers: int = 9) -> tuple[dict[str, object], dict[str, int]]:
+    # Build set of late-K layer names to passthrough in fp16
+    late_k_names: set[str] = set()
+    if late_k_layers > 0:
+        for i in range(num_layers - late_k_layers, num_layers):
+            late_k_names.add(f"blocks.{i}.attn.c_k.weight")
+
     quantized: dict[str, np.ndarray] = {}
     scales: dict[str, np.ndarray] = {}
     dtypes: dict[str, str] = {}
@@ -633,6 +643,13 @@ def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str,
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = np.ascontiguousarray(np.array(arr))
             stats["int8_payload_bytes"] += int(passthrough[name].nbytes)
+            continue
+
+        # Late-K passthrough: keep specified layers' c_k.weight in fp16
+        if name in late_k_names:
+            kept = keep_float_array(name, arr, passthrough_orig_dtypes)
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += int(kept.nbytes)
             continue
 
         # Small float tensors are cheap enough to keep directly. We still downcast
@@ -1171,7 +1188,7 @@ def main() -> None:
     mx.savez(str(out_path), **flat_state)
     log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(flat_state)
+    quant_obj, quant_stats = quantize_state_dict_int8(flat_state, late_k_layers=args.late_k_layers, num_layers=args.num_layers)
     quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_serialized_bytes = len(quant_raw)

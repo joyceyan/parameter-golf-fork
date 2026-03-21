@@ -413,10 +413,11 @@ class GPT(nn.Module):
         # Orthogonal init for all CastedLinear weights (accelerates Muon convergence)
         for b in self.blocks:
             for lin in [b.attn.c_q, b.attn.c_k, b.attn.c_v, b.mlp.fc]:
-                w = np.random.randn(*lin.weight.shape).astype(np.float32)
-                q, _ = np.linalg.qr(w if w.shape[0] >= w.shape[1] else w.T)
-                q = q[:lin.weight.shape[0], :lin.weight.shape[1]]
-                lin.weight = mx.array(q, dtype=lin.weight.dtype)
+                rows, cols = lin.weight.shape
+                size = max(rows, cols)
+                w = np.random.randn(size, size).astype(np.float32)
+                q, _ = np.linalg.qr(w)
+                lin.weight = mx.array(q[:rows, :cols], dtype=lin.weight.dtype)
             # Output projections stay at zero (residual starts as identity)
             b.attn.proj.weight = mx.zeros_like(b.attn.proj.weight)
             b.mlp.proj.weight = mx.zeros_like(b.mlp.proj.weight)

@@ -114,9 +114,17 @@ class Hyperparameters:
     def microbatch_tokens(self) -> int:
         return self.train_batch_tokens // self.grad_accum_steps
 
+    # LR schedule: "linear" (default, original warmdown) or "cosine"
+    lr_schedule: str = os.environ.get("LR_SCHEDULE", "cosine")
+
     def lr_mul(self, step: int, elapsed_ms: float) -> float:
         if self.warmdown_iters <= 0:
             return 1.0
+        if self.lr_schedule == "cosine" and self.max_wallclock_seconds > 0:
+            # Cosine decay over the entire training period (wallclock-based)
+            total_ms = 1000.0 * self.max_wallclock_seconds
+            t = min(elapsed_ms / total_ms, 1.0)
+            return 0.5 * (1.0 + math.cos(math.pi * t))
         if self.max_wallclock_seconds <= 0:
             warmdown_start = max(self.iterations - self.warmdown_iters, 0)
             return max((self.iterations - step) / max(self.warmdown_iters, 1), 0.0) if warmdown_start <= step < self.iterations else 1.0

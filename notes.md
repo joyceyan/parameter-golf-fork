@@ -471,18 +471,6 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 41: Disable eager eval (2026-03-21 02:06)
 - **Result**: KILLED — 3x slower (9.6s/step vs 3.4s). Lazy graph accumulation causes massive memory pressure on 16GB M2 Pro. Not viable.
 
-### Experiment 42: Shorter seq_len 1024→512 (2026-03-21 02:09)
-- **Result**: roundtrip_val_bpb=1.7532 (vs 1.8768), **KEEP — 0.124 BPB!** 224 steps at 2684ms.
-
-### Experiment 43: seq_len 256 (2026-03-21 02:41)
-- **Result**: 1.8038. **DISCARDED — 0.051 worse**. 258 steps but lost context.
-
-### Experiment 44: MLX-native grad clipping (2026-03-21 03:15)
-- **Result**: 1.7539. **DISCARDED — noise.** 226 steps, ~1% faster.
-
-### Experiment 45: Lower LR 0.20/0.20/0.25 (2026-03-21 03:47)
-- **Result**: 1.7824. **DISCARDED — 0.029 worse.** Current LR still optimal with faster steps.
-
-**Current best**: val_bpb=1.7532, artifact=8.63MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
-**Progress**: 2.4294 → 1.7532 = 0.676 BPB over 45 experiments.
+**Current best**: val_bpb=1.8768, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
+**Progress**: 2.4294 → 1.8768 = 0.553 BPB over 41 experiments.
 

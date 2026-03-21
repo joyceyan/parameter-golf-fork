@@ -210,7 +210,15 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - 10 layers — standard in top records, funded by compression savings.
 - WD=0.04 for both Muon and AdamW — confirmed optimal. Our finding validated!
 
-**Medium priority — local-testable ideas:**
+**Medium priority — speed optimizations (local-testable, more steps = more learning):**
+- Reduce Newton-Schulz iterations 5→3 (`MUON_BACKEND_STEPS=3`). Muon doesn't need exact orthogonality — approximate is fine since gradients refresh each step. Saves ~40% of optimizer compute. **Transfers to H100.**
+- Grad clipping in MLX instead of CPU. Current `clip_grad_tree` converts every gradient to numpy (CPU roundtrip mid-step). Rewrite entirely in mx.array ops to stay on Metal GPU.
+- Larger microbatch chunks (`MLX_MAX_MICROBATCH_TOKENS=16384` or `MLX_EAGER_EVAL=0`). Currently 8K chunks = 8 forward/backward passes per microbatch. Fewer chunks = less overhead.
+- Fused QKV projection. Single `c_qkv(x)` matmul + split instead of 3 separate `c_q/c_k/c_v` projections. Better hardware utilization. **Transfers to H100.**
+- Shorter sequence length (`TRAIN_SEQ_LEN=512`). Attention is O(N²) — halving seq_len gives ~4x cheaper attention per token. More steps in 10 min. Tradeoff: less context per token. **Transfers to H100** (MixedQuant record already used seq=1024 for throughput).
+- Fewer layers + wider MLP (e.g. 7L MLP_MULT=3 instead of 9L MLP_MULT=2). Fewer sequential passes, more capacity per layer. MLPs are parallel, depth is sequential. **Transfers to H100.**
+
+**Medium priority — local-testable quality ideas:**
 - Int6 quantization (without QAT) — round int8 to nearest step=4 in post-quant. See 10L_MixedPrecision.
 - NTK-RoPE extrapolation at eval time (EVAL_SEQ_LEN > TRAIN_SEQ_LEN). See WarmdownQuantization record.
 - Late-K passthrough (last 2 layers' c_k.weight in fp16 instead of int8)

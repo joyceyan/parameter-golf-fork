@@ -478,12 +478,8 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 46: Higher LR 0.40/0.40/0.50 — DISCARD (0.029 worse)
 ### Experiment 47: Warmdown 800 — DISCARD (0.084 worse, too aggressive)
 
-### Experiment 48: Sliding window eval stride=256 (2026-03-21 05:25)
-- **Hypothesis**: Eval-only improvement. Each token scored with near-maximum context.
-- **Result**: roundtrip_val_bpb=1.7187 (vs 1.7532 standard eval), **KEEP — 0.035 BPB!**
-- Pre-quant=1.7152, artifact=8.62MB. Eval took 22min (vs 10min standard).
-- **Note**: Eval time is problematic for rapid experiment iteration. For future experiments, consider using standard eval for speed and only using sliding window for final results. On H100 with stride=64, the improvement would be even larger.
+**Current best**: val_bpb=1.7532, artifact=8.63MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
+**Progress**: 2.4294 → 1.7532 = 0.676 BPB over 47 experiments.
 
-**Current best**: val_bpb=1.7187, artifact=8.62MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K, eval_stride=256.
-**Progress**: 2.4294 → 1.7187 = 0.711 BPB over 48 experiments.
+**Strategy note**: Last 4 HP tweaks were all discards (~0.029 worse). LR and warmdown are well-tuned. Need to change strategy: try architectural changes or eval-time improvements. Remaining ideas: weight snapping, NTK-RoPE, depth recurrence, train_batch_tokens increase.
 

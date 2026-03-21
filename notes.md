@@ -471,6 +471,15 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 41: Disable eager eval (2026-03-21 02:06)
 - **Result**: KILLED — 3x slower (9.6s/step vs 3.4s). Lazy graph accumulation causes massive memory pressure on 16GB M2 Pro. Not viable.
 
-**Current best**: val_bpb=1.8768, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
-**Progress**: 2.4294 → 1.8768 = 0.553 BPB over 41 experiments.
+### Experiment 42: seq_len 1024→512 — **KEEP — 0.124 BPB** (see above)
+### Experiment 43: seq_len 256 — DISCARD (0.051 worse, lost context)
+### Experiment 44: MLX-native grad clip — DISCARD (noise)
+### Experiment 45: Lower LR 0.20/0.20/0.25 — DISCARD (0.029 worse)
+### Experiment 46: Higher LR 0.40/0.40/0.50 — DISCARD (0.029 worse)
+### Experiment 47: Warmdown 800 — DISCARD (0.084 worse, too aggressive)
+
+**Current best**: val_bpb=1.7532, artifact=8.63MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
+**Progress**: 2.4294 → 1.7532 = 0.676 BPB over 47 experiments.
+
+**Strategy note**: Last 4 HP tweaks were all discards (~0.029 worse). LR and warmdown are well-tuned. Need to change strategy: try architectural changes or eval-time improvements. Remaining ideas: weight snapping, NTK-RoPE, depth recurrence, train_batch_tokens increase.
 

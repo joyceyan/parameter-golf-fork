@@ -97,7 +97,7 @@ class Hyperparameters:
 
     # Sliding window eval: stride < seq_len means each token scored with more context.
     # H100 production: EVAL_STRIDE=64. Smoke tests: 512 (faster, still beneficial).
-    eval_stride: int = int(os.environ.get("EVAL_STRIDE", 256))
+    eval_stride: int = int(os.environ.get("EVAL_STRIDE", 128))
     eval_batch_seqs: int = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")

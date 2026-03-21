@@ -34,3 +34,4 @@ started_pt	commit	roundtrip_val_bpb	artifact_mb	duration_min	vocab	status	descri
 2026-03-20 20:43	680beaa	1.973369	8.21	34.0	1024	discard	fused QKV projection (0.058 worse)
 2026-03-20 21:19	433b727	1.918345	8.42	34.0	1024	discard	orthogonal init (0.003 worse, within noise)
 2026-03-20 21:55	0f62eff	1.914901	8.29	33.0	1024	keep	tighter grad clip 1.0->0.3
+2026-03-20 22:30	e9b87cb	1.945570	10.10	38.0	1024	discard	MLP 3x expansion (fewer steps on M2)

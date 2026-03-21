@@ -434,6 +434,12 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Pre-quant=1.9105 (0.005 better), quant penalty=0.0044. Step 10 loss 5.73 (slightly slower early learning as expected with tighter clip).
 - **Note**: Borderline improvement but aligns with SOTA practice. Pre-quant improvement is more convincing than roundtrip delta.
 
+### Experiment 36: MLP 3x expansion (2026-03-20 22:30)
+- **Hypothesis**: MLP 3x (hidden=1536) is the single largest architectural win in SOTA records. More capacity per step should help.
+- **Result**: roundtrip_val_bpb=1.9456 (vs 1.9149), artifact=10.10MB, **DISCARDED — 0.031 worse**
+- Pre-quant=1.9407. 156 steps (vs 173), step_avg=3869ms (15% slower).
+- **Key insight**: MLP 3x needs more training steps to utilize the extra capacity. On M2 with only 156 steps (-10%), the model can't learn enough to use the extra parameters. On H100 with 12K+ steps, this is consistently a huge win. Classic M2 vs H100 divergence — note in H100-only queue.
+
 **Current best**: val_bpb=1.9149, artifact=8.29MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32 (all params), warmup=5.
-**Progress**: 2.4294 → 1.9149 = 0.515 BPB over 35 experiments.
+**Progress**: 2.4294 → 1.9149 = 0.515 BPB over 36 experiments.
 

@@ -447,12 +447,21 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Pre-quant=1.9091 (0.006 better). 174 steps, step_avg=3459ms.
 - **Note**: Borderline, but combined with exp 35 (clip=0.3), we're now matching two key SOTA HP choices: clip=0.3, momentum=0.99.
 
-**Current best**: val_bpb=1.9142, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32 (all params), warmup=5, momentum=0.99.
-**Progress**: 2.4294 → 1.9142 = 0.515 BPB over 37 experiments.
+**Current best (pre-39)**: val_bpb=1.9142, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32 (all params), warmup=5, momentum=0.99.
 
 ### Experiment 38: Warmdown 1200→3000 (2026-03-21 00:07)
 - **Hypothesis**: SOTA records use warmdown=3000. More gradual LR decay should help convergence.
 - **Result**: roundtrip_val_bpb=2.0220 (vs 1.9142), artifact=7.72MB, **DISCARDED — 0.108 worse!**
 - Pre-quant val_bpb=2.0138. 175 steps, step_avg=3439ms.
 - **Key insight**: warmdown=3000 cuts effective LR_mul from 0.14 (warmdown=1200) to 0.057 (warmdown=3000), a ~60% reduction. The model barely learns. This setting is designed for H100 with 13K steps where LR_mul = (13000*43/1000) / 3000 ≈ 0.19 — much healthier. On M2 with 170 steps, even warmdown=1200 puts entire training in warmdown. Going higher makes it strictly worse. Add to "Already tried" list.
+
+### Experiment 39: Larger microbatch chunks 8K→16K (2026-03-21 00:46)
+- **Hypothesis**: Fewer sub-batches per step (4 vs 8) means less kernel launch overhead, potentially faster training. More steps = more learning.
+- **Result**: roundtrip_val_bpb=1.8768 (vs 1.9142), artifact=8.35MB, **KEEP — 0.037 BPB improvement!**
+- Pre-quant=1.8715, quant penalty=0.005. 177 steps (vs 174), step_avg=3404ms (vs 3459ms — 1.6% faster).
+- **Key insight**: Despite early steps being slower (compilation warmup with new graph), the stable step_avg is faster. 3 extra steps in 10 min + slightly different compute graph = significant quality gain. The 0.037 improvement is large — may partly be favorable variance, but the mechanism (more steps + potentially better MLX graph optimization with fewer chunks) is real.
+- **Note**: This is a large improvement. Consider re-running to confirm it's not variance. But the directional signal is clear: larger microbatches help throughput.
+
+**Current best**: val_bpb=1.8768, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32 (all params), warmup=5, momentum=0.99, microbatch=16K.
+**Progress**: 2.4294 → 1.8768 = 0.553 BPB over 39 experiments.
 

@@ -440,6 +440,12 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 - Pre-quant=1.9407. 156 steps (vs 173), step_avg=3869ms (15% slower).
 - **Key insight**: MLP 3x needs more training steps to utilize the extra capacity. On M2 with only 156 steps (-10%), the model can't learn enough to use the extra parameters. On H100 with 12K+ steps, this is consistently a huge win. Classic M2 vs H100 divergence — note in H100-only queue.
 
-**Current best**: val_bpb=1.9149, artifact=8.29MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32 (all params), warmup=5.
-**Progress**: 2.4294 → 1.9149 = 0.515 BPB over 36 experiments.
+### Experiment 37: Muon momentum 0.95→0.99 (2026-03-20 23:09)
+- **Hypothesis**: SOTA records use momentum=0.99. Higher momentum accumulates more gradient history.
+- **Result**: roundtrip_val_bpb=1.9142 (vs 1.9149), artifact=8.35MB, **KEEP — 0.001 BPB (borderline)**
+- Pre-quant=1.9091 (0.006 better). 174 steps, step_avg=3459ms.
+- **Note**: Borderline, but combined with exp 35 (clip=0.3), we're now matching two key SOTA HP choices: clip=0.3, momentum=0.99.
+
+**Current best**: val_bpb=1.9142, artifact=8.35MB. Config: 9L/512dim, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32 (all params), warmup=5, momentum=0.99.
+**Progress**: 2.4294 → 1.9142 = 0.515 BPB over 37 experiments.
 

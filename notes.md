@@ -481,5 +481,29 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 **Current best**: val_bpb=1.7532, artifact=8.63MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
 **Progress**: 2.4294 → 1.7532 = 0.676 BPB over 47 experiments.
 
-**Strategy note**: Last 4 HP tweaks were all discards (~0.029 worse). LR and warmdown are well-tuned. Need to change strategy: try architectural changes or eval-time improvements. Remaining ideas: weight snapping, NTK-RoPE, depth recurrence, train_batch_tokens increase.
+### Experiment 48: Sliding window eval stride=256 — **KEEP — 0.035 BPB** (eval-only, 22min eval)
+### Experiment 49: WD 0.32→0.24 — DISCARD (0.109 worse, 9.20MB artifact)
+
+### Experiment 50: WD 0.32→0.48 (2026-03-21 08:02)
+- **Hypothesis**: Higher WD improved compression through the sweep (0.02→0.32). Push further to 0.48.
+- **Result**: roundtrip_val_bpb=1.7540 (vs 1.7187), artifact=7.62MB, **DISCARDED — 0.035 worse**
+- Pre-quant val_bpb=1.7841 (first eval). 222 steps, step_avg=2714ms.
+- **Key insight**: WD=0.48 shrank artifact further (7.62 vs 8.62MB) but hurt quality more than the compression gain. WD=0.32 remains optimal — confirmed from both sides (0.24 and 0.48 both worse).
+
+### Experiment 51: NTK-RoPE eval extrapolation (2026-03-21 08:48)
+- **Hypothesis**: Train at seq=512, eval at seq=1024 with NTK-scaled RoPE base (10000→20452). Model gets longer context at eval time without training cost.
+- **Result**: roundtrip_val_bpb=1.7782 (vs 1.7187), artifact=8.64MB, **DISCARDED — 0.060 worse**
+- Eval took 50 minutes (seq=1024 windows with stride=256 = 4x more attention per window).
+- **Key insight**: NTK-RoPE extrapolation doesn't work when train_seq is 512 → eval_seq 1024 (2x extrapolation). The model was never trained on positions 512-1023, so even with scaled frequencies, it can't meaningfully attend to those positions.
+
+### Experiment 52: Cosine LR schedule (2026-03-21 10:02)
+- **Hypothesis**: Cosine decay over entire wallclock (lr_mul: 1.0→0.0) gives higher effective LR early, more learning.
+- **Result**: roundtrip_val_bpb=2.1432 (vs 1.7187), artifact=5.83MB, **DISCARDED — 0.424 worse!**
+- Step 200 loss=3.718 (vs 3.182 with linear). Step 10 loss=6.05 (vs 5.61).
+- **Key insight**: Cosine starts at lr_mul=1.0 (effective LR=0.30), vs linear starting at lr_mul=0.185 (effective LR=0.055). The 5.4x higher early LR caused instability. The linear warmdown schedule is well-suited to M2's short training regime.
+
+**Current best**: val_bpb=1.7187, artifact=8.62MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K, eval_stride=256.
+**Progress**: 2.4294 → 1.7187 = 0.711 BPB over 52 experiments.
+
+**Strategy note**: Last 5+ HP tweaks were all discards. LR, warmdown, WD, and schedule are well-tuned. Need to change strategy: try architectural changes or compression improvements. Remaining ideas: weight snapping, depth recurrence, 7L+wider MLP.
 

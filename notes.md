@@ -220,7 +220,7 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 
 **Medium priority — local-testable quality ideas:**
 - ~~Int6 quantization (without QAT)~~ (exp 31 — quant penalty 0.173, needs QAT to work. H100 only.)
-- ~~NTK-RoPE extrapolation~~ (exp 51 — 0.060 worse, model can't use untrained positions)
+- NTK-RoPE extrapolation at eval time (EVAL_SEQ_LEN > TRAIN_SEQ_LEN). See WarmdownQuantization record.
 - ~~Late-K passthrough~~ (exp 32 — 0.003 worse, int8 quant penalty already low enough)
 - Weight snapping (round weights toward quantization grid before final export)
 - ~~Label smoothing~~ (exp 29 — 0.344 worse, prevents confident predictions which directly hurts BPB)
@@ -246,9 +246,6 @@ Ideas to try in future experiments. Remove when tried or invalidated.
 - ~~Warmdown 3000~~: Cuts effective LR_mul from 0.14 to 0.057 on M2 (exp 38, 0.108 worse). Designed for H100's 13K steps.
 - ~~Disable eager eval~~: 3x slower on 16GB M2 Pro (exp 41). Need 32GB+ unified memory.
 - ~~Microbatch 32K~~: Faster step time but slightly worse quality than 16K (exp 40). 16K is optimal.
-- ~~NTK-RoPE eval extrapolation~~: 2x extrapolation (512→1024) was 0.060 worse (exp 51). Model can't use untrained positions.
-- ~~WD 0.48~~: 0.035 worse than 0.32 (exp 50). WD=0.32 confirmed optimal from both sides.
-- ~~WD 0.24~~: 0.109 worse than 0.32 (exp 49). Lower WD = larger weights = worse compression.
 
 ## Experiment log
 
@@ -481,23 +478,8 @@ WD=0.32 is optimal. FP16 embed too small to measure locally (save for H100 runs)
 ### Experiment 46: Higher LR 0.40/0.40/0.50 — DISCARD (0.029 worse)
 ### Experiment 47: Warmdown 800 — DISCARD (0.084 worse, too aggressive)
 
-### Experiment 48: Sliding window eval stride=256 — **KEEP — 0.035 BPB** (eval-only, 22min eval)
-### Experiment 49: WD 0.32→0.24 — DISCARD (0.109 worse, 9.20MB artifact)
+**Current best**: val_bpb=1.7532, artifact=8.63MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K.
+**Progress**: 2.4294 → 1.7532 = 0.676 BPB over 47 experiments.
 
-### Experiment 50: WD 0.32→0.48 (2026-03-21 08:02)
-- **Hypothesis**: Higher WD improved compression through the sweep (0.02→0.32). Push further to 0.48.
-- **Result**: roundtrip_val_bpb=1.7540 (vs 1.7187), artifact=7.62MB, **DISCARDED — 0.035 worse**
-- Pre-quant val_bpb=1.7841 (first eval). 222 steps, step_avg=2714ms.
-- **Key insight**: WD=0.48 shrank artifact further (7.62 vs 8.62MB) but hurt quality more than the compression gain. WD=0.32 remains optimal — confirmed from both sides (0.24 and 0.48 both worse).
-
-### Experiment 51: NTK-RoPE eval extrapolation (2026-03-21 08:48)
-- **Hypothesis**: Train at seq=512, eval at seq=1024 with NTK-scaled RoPE base (10000→20452). Model gets longer context at eval time without training cost.
-- **Result**: roundtrip_val_bpb=1.7782 (vs 1.7187), artifact=8.64MB, **DISCARDED — 0.060 worse**
-- Eval took 50 minutes (seq=1024 windows with stride=256 = 4x more attention per window).
-- **Key insight**: NTK-RoPE extrapolation doesn't work when train_seq is 512 → eval_seq 1024 (2x extrapolation). The model was never trained on positions 512-1023, so even with scaled frequencies, it can't meaningfully attend to those positions. The longer windows just add noise. This technique requires a smaller scale factor or being trained at closer to the eval length. Not worth pursuing locally.
-
-**Current best**: val_bpb=1.7187, artifact=8.62MB. Config: 9L/512dim, seq=512, LR=0.30/0.30/0.35, warmdown=1200, grad_clip=0.3, muon_wd=0.32, warmup=5, momentum=0.99, microbatch=16K, eval_stride=256.
-**Progress**: 2.4294 → 1.7187 = 0.711 BPB over 51 experiments.
-
-**Strategy note**: Last 5+ HP tweaks were all discards. LR, warmdown, and WD are well-tuned from both sides. Need to change strategy: try architectural changes or compression improvements. Remaining ideas: weight snapping, depth recurrence, eval_batch_seqs, train_batch_tokens increase.
+**Strategy note**: Last 4 HP tweaks were all discards (~0.029 worse). LR and warmdown are well-tuned. Need to change strategy: try architectural changes or eval-time improvements. Remaining ideas: weight snapping, NTK-RoPE, depth recurrence, train_batch_tokens increase.
 
